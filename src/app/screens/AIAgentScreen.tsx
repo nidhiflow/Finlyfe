@@ -1,22 +1,46 @@
-import { useState } from "react";
-import { Send, Image, Mic, Trash2, Bot, User, TrendingUp, PiggyBank, AlertCircle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Send, Image, Mic, Trash2, Bot, User, TrendingUp, PiggyBank, AlertCircle, Loader2 } from "lucide-react";
+import { aiAPI } from "../services/api";
 
 export function AIAgentScreen() {
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      type: "ai" as const,
-      content: "👋 Hi! I'm your Finly AI assistant. I can help you with:",
-      timestamp: "10:30 AM",
-    },
-    {
-      id: 2,
-      type: "ai" as const,
-      content: "• Analyzing your spending patterns\n• Setting budgets and goals\n• Scanning receipts and bills\n• Forecasting expenses\n• Financial advice and tips",
-      timestamp: "10:30 AM",
-    },
-  ]);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const history = await aiAPI.getChatHistory();
+        if (history && Array.isArray(history)) {
+          setMessages(history.map(m => ({
+            id: m.id || Math.random().toString(),
+            type: m.role || (m.is_user ? 'user' : 'ai'),
+            content: m.content || m.message,
+            timestamp: m.created_at ? new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          })));
+        } else if (history && history.length === 0) {
+           setMessages([
+            {
+              id: "welcome-1",
+              type: "ai",
+              content: "👋 Hi! I'm your Finly AI assistant. I can help you with:\n• Analyzing your spending patterns\n• Setting budgets and goals\n• Forecasting expenses",
+              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            }
+          ]);
+        }
+      } catch (err) {
+        console.error("Failed to load chat history", err);
+      }
+    };
+    loadHistory();
+  }, []);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isLoading]);
 
   const suggestions = [
     { icon: TrendingUp, text: "Analyze my spending this month" },
@@ -24,27 +48,57 @@ export function AIAgentScreen() {
     { icon: AlertCircle, text: "Budget optimization tips" },
   ];
 
-  const handleSend = () => {
-    if (!message.trim()) return;
+  const handleSend = async (textOverride?: string) => {
+    const textToSend = textOverride || message;
+    if (!textToSend.trim() || isLoading) return;
 
-    // Add user message
-    const userMsg = {
-      id: messages.length + 1,
-      type: "user" as const,
-      content: message,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-
-    // Mock AI response
-    const aiMsg = {
-      id: messages.length + 2,
-      type: "ai" as const,
-      content: "Based on your March spending of ₹18,700, you're doing 11% better than last month! Your top category is Food (₹8,200). Consider meal planning to reduce food costs by 15-20%.",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-
-    setMessages([...messages, userMsg, aiMsg]);
     setMessage("");
+    setIsLoading(true);
+
+    const newMsg = {
+      id: Date.now().toString(),
+      type: "user",
+      content: textToSend,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    };
+    
+    setMessages(prev => [...prev, newMsg]);
+
+    try {
+      const res = await aiAPI.chat({ message: textToSend });
+      if (res) {
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          type: "ai",
+          content: res.message || res.response || "I didn't quite get that.",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        }]);
+      }
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        type: "ai",
+        content: "Sorry, I am having trouble connecting right now.",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleClear = async () => {
+    if (!confirm("Are you sure you want to clear chat history?")) return;
+    try {
+      await aiAPI.clearChat();
+      setMessages([{
+        id: "welcome-1",
+        type: "ai",
+        content: "👋 Chat cleared. How can I help you today?",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      }]);
+    } catch (err) {
+      console.error("Failed to clear chat", err);
+    }
   };
 
   return (
@@ -63,7 +117,7 @@ export function AIAgentScreen() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-5 py-6 space-y-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-6 space-y-4">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -94,6 +148,20 @@ export function AIAgentScreen() {
           </div>
         ))}
 
+        {isLoading && (
+          <div className="flex gap-3">
+             <div className="w-8 h-8 rounded-full bg-[#7C5CFF]/20 flex items-center justify-center flex-shrink-0">
+               <Bot className="w-4 h-4 text-[#7C5CFF]" />
+             </div>
+             <div className="flex-1">
+               <div className="px-4 py-3 rounded-2xl max-w-[85%] bg-[#1B2130] border border-white/5 flex items-center gap-2">
+                 <Loader2 className="w-4 h-4 text-[#7C5CFF] animate-spin" />
+                 <p className="text-sm text-white/50">Analyzing...</p>
+               </div>
+             </div>
+          </div>
+        )}
+
         {/* Suggestions (only show when no user messages) */}
         {messages.filter((m) => m.type === "user").length === 0 && (
           <div className="space-y-2 pt-4">
@@ -103,7 +171,7 @@ export function AIAgentScreen() {
               return (
                 <button
                   key={i}
-                  onClick={() => setMessage(suggestion.text)}
+                  onClick={() => handleSend(suggestion.text)}
                   className="w-full flex items-center gap-3 p-3 bg-[#1B2130] border border-white/5 rounded-xl hover:border-[#7C5CFF]/30 transition-colors"
                 >
                   <div className="w-8 h-8 rounded-lg bg-[#7C5CFF]/20 flex items-center justify-center">
@@ -129,7 +197,7 @@ export function AIAgentScreen() {
             <Mic className="w-4 h-4" />
             <span>Voice</span>
           </button>
-          <button className="flex items-center gap-2 px-3 py-2 bg-[#1B2130] border border-white/10 rounded-lg text-sm text-white hover:border-[#7C5CFF]/30">
+          <button onClick={handleClear} className="flex items-center gap-2 px-3 py-2 bg-[#1B2130] border border-white/10 rounded-lg text-sm text-white hover:border-[#EF4444]/30">
             <Trash2 className="w-4 h-4" />
             <span>Clear</span>
           </button>
@@ -142,12 +210,14 @@ export function AIAgentScreen() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && handleSend()}
+            disabled={isLoading}
             placeholder="Ask me anything about your finances..."
             className="flex-1 px-4 py-3 bg-[#1B2130] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:border-[#7C5CFF] focus:outline-none"
           />
           <button
-            onClick={handleSend}
-            className="w-12 h-12 rounded-xl bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] flex items-center justify-center shadow-lg shadow-[#7C5CFF]/30"
+            onClick={() => handleSend()}
+            disabled={isLoading || !message.trim()}
+            className="w-12 h-12 rounded-xl bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] flex items-center justify-center shadow-lg shadow-[#7C5CFF]/30 disabled:opacity-50"
           >
             <Send className="w-5 h-5 text-white" />
           </button>

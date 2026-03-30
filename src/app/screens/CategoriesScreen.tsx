@@ -1,65 +1,66 @@
-import { useState } from "react";
-import { Plus, ChevronRight, Edit, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, ChevronRight, Edit, Trash2, Landmark } from "lucide-react";
+import { categoriesAPI, API_BASE_URL } from "../services/api";
 
 export function CategoriesScreen() {
   const [activeTab, setActiveTab] = useState<"expense" | "income">("expense");
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const expenseCategories = [
-    {
-      id: 1,
-      name: "Food & Dining",
-      icon: "🍔",
-      color: "#7C5CFF",
-      subcategories: ["Restaurants", "Groceries", "Fast Food"],
-      count: 45,
-    },
-    {
-      id: 2,
-      name: "Transport",
-      icon: "🚗",
-      color: "#4CC9F0",
-      subcategories: ["Uber", "Petrol", "Public Transport"],
-      count: 28,
-    },
-    {
-      id: 3,
-      name: "Bills & Utilities",
-      icon: "⚡",
-      color: "#FFA500",
-      subcategories: ["Electricity", "Water", "Internet"],
-      count: 12,
-    },
-    {
-      id: 4,
-      name: "Shopping",
-      icon: "🛍️",
-      color: "#FF6B6B",
-      subcategories: ["Clothes", "Electronics", "Others"],
-      count: 18,
-    },
-  ];
+  const [apiCategories, setApiCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Add Modal State
+  const [newName, setNewName] = useState("");
+  const [newIcon, setNewIcon] = useState("🍔");
+  const [newColor, setNewColor] = useState("#7C5CFF");
+  const [isSaving, setIsSaving] = useState(false);
 
-  const incomeCategories = [
-    {
-      id: 1,
-      name: "Salary",
-      icon: "💼",
-      color: "#22C55E",
-      subcategories: ["Monthly Salary", "Bonus"],
-      count: 2,
-    },
-    {
-      id: 2,
-      name: "Freelance",
-      icon: "💻",
-      color: "#4CC9F0",
-      subcategories: ["Projects", "Consulting"],
-      count: 5,
-    },
-  ];
+  const fetchCategories = async () => {
+    try {
+      const data = await categoriesAPI.list();
+      if (data) setApiCategories(data);
+    } catch (err) {
+      console.error("Failed to load categories", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const categories = activeTab === "expense" ? expenseCategories : incomeCategories;
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this category?")) return;
+    try {
+      await categoriesAPI.delete(id);
+      fetchCategories();
+    } catch (err) {
+      console.error("Failed to delete", err);
+    }
+  };
+
+  const handleSaveCategory = async () => {
+    if (!newName.trim()) return;
+    setIsSaving(true);
+    try {
+      await categoriesAPI.create({
+        name: newName,
+        type: activeTab,
+        icon: newIcon,
+        color: newColor
+      });
+      setShowAddModal(false);
+      setNewName("");
+      fetchCategories();
+    } catch (err) {
+      console.error("Failed to create category", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const categories = apiCategories.filter(c => c.type === activeTab);
 
   return (
     <div className="px-5 py-6 space-y-6">
@@ -94,42 +95,45 @@ export function CategoriesScreen() {
 
       {/* Categories List */}
       <div className="space-y-3">
-        {categories.map((category) => (
+        {loading ? (
+             <div className="text-center py-8">
+               <p className="text-sm text-white/50">Loading categories...</p>
+             </div>
+        ) : categories.length === 0 ? (
+             <div className="text-center py-8 bg-[#1B2130] rounded-2xl border border-white/5">
+                <Landmark className="w-8 h-8 text-white/20 mx-auto mb-2" />
+                <p className="text-sm text-white/50">No {activeTab} categories found.</p>
+             </div>
+        ) : categories.map((category) => {
+          const catIcon = category.icon || "📊";
+          const catColor = category.color || "#7C5CFF";
+          
+          return (
           <div key={category.id} className="bg-[#1B2130] rounded-2xl p-4 border border-white/5">
             <div className="flex items-center gap-3 mb-3">
               <div
                 className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
-                style={{ backgroundColor: `${category.color}20` }}
+                style={{ backgroundColor: `${catColor}20` }}
               >
-                {category.icon}
+                {catIcon.startsWith('http') ? <img src={catIcon} className="w-6 h-6 object-contain" alt="" /> : catIcon}
               </div>
-              <div className="flex-1">
-                <h3 className="text-white font-semibold">{category.name}</h3>
-                <p className="text-xs text-white/50">{category.count} transactions</p>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-white font-semibold truncate">{category.name}</h3>
+                <p className="text-xs text-white/50">0 transactions</p>
               </div>
               <div className="flex items-center gap-1">
                 <button className="w-8 h-8 rounded-lg hover:bg-white/5 flex items-center justify-center">
                   <Edit className="w-4 h-4 text-white/70" />
                 </button>
-                <button className="w-8 h-8 rounded-lg hover:bg-white/5 flex items-center justify-center">
+                <button onClick={() => handleDelete(category.id)} className="w-8 h-8 rounded-lg hover:bg-white/5 flex items-center justify-center">
                   <Trash2 className="w-4 h-4 text-[#EF4444]" />
                 </button>
               </div>
             </div>
 
-            {/* Subcategories */}
-            {category.subcategories.length > 0 && (
-              <div className="space-y-2 pl-3 border-l-2 border-white/10 ml-6">
-                {category.subcategories.map((sub, i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <p className="text-sm text-white/70">{sub}</p>
-                    <ChevronRight className="w-4 h-4 text-white/40" />
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* Subcategories (removed visual mock lines since API doesn't support yet, leaving empty block to preserve DOM) */}
           </div>
-        ))}
+        )})}
       </div>
 
       {/* Sync Defaults */}
@@ -148,6 +152,8 @@ export function CategoriesScreen() {
               <label className="text-sm text-white/70 mb-2 block">Name</label>
               <input
                 type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
                 placeholder="Category name"
                 className="w-full px-4 py-3 bg-[#0D0F14] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:border-[#7C5CFF] focus:outline-none"
               />
@@ -159,7 +165,10 @@ export function CategoriesScreen() {
                 {["🍔", "🚗", "⚡", "🛍️", "🏥", "🎓", "🎮", "✈️"].map((emoji) => (
                   <button
                     key={emoji}
-                    className="w-12 h-12 rounded-xl bg-[#0D0F14] border border-white/10 flex items-center justify-center text-2xl hover:border-[#7C5CFF]/30"
+                    onClick={() => setNewIcon(emoji)}
+                    className={`w-12 h-12 rounded-xl bg-[#0D0F14] flex items-center justify-center text-2xl transition-colors ${
+                      newIcon === emoji ? "border-2 border-[#7C5CFF]" : "border border-white/10 hover:border-[#7C5CFF]/30"
+                    }`}
                   >
                     {emoji}
                   </button>
@@ -173,7 +182,10 @@ export function CategoriesScreen() {
                 {["#7C5CFF", "#4CC9F0", "#22C55E", "#FFA500", "#EF4444", "#FF6B6B"].map((color) => (
                   <button
                     key={color}
-                    className="w-10 h-10 rounded-xl border-2 border-white/20"
+                    onClick={() => setNewColor(color)}
+                    className={`w-10 h-10 rounded-xl transition-transform ${
+                      newColor === color ? "border-2 border-white scale-110" : "border-2 border-transparent"
+                    }`}
                     style={{ backgroundColor: color }}
                   />
                 ))}
@@ -183,12 +195,17 @@ export function CategoriesScreen() {
             <div className="flex gap-3 pt-2">
               <button
                 onClick={() => setShowAddModal(false)}
-                className="flex-1 py-3 bg-[#0D0F14] border border-white/10 rounded-xl text-white font-medium"
+                disabled={isSaving}
+                className="flex-1 py-3 bg-[#0D0F14] border border-white/10 rounded-xl text-white font-medium disabled:opacity-50"
               >
                 Cancel
               </button>
-              <button className="flex-1 py-3 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold">
-                Save
+              <button 
+                onClick={handleSaveCategory}
+                disabled={isSaving}
+                className="flex-1 py-3 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold disabled:opacity-50"
+              >
+                {isSaving ? "Saving..." : "Save"}
               </button>
             </div>
           </div>

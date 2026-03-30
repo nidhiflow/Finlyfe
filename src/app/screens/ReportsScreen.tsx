@@ -1,30 +1,81 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { TrendingUp, TrendingDown, DollarSign, Bot } from "lucide-react";
+import { statsAPI, aiAPI } from "../services/api";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
-
-const trendData = [
-  { name: "Jan", income: 45000, expense: 22000 },
-  { name: "Feb", income: 48000, expense: 21000 },
-  { name: "Mar", income: 52000, expense: 18700 },
-];
-
-const categoryData = [
-  { name: "Food", value: 8200, color: "#7C5CFF" },
-  { name: "Travel", value: 4600, color: "#4CC9F0" },
-  { name: "Bills", value: 3100, color: "#22C55E" },
-  { name: "Other", value: 2800, color: "#EF4444" },
-];
 
 export function ReportsScreen() {
   const [dateRange, setDateRange] = useState("30d");
   const [activeTab, setActiveTab] = useState<"cashflow" | "spending" | "income" | "expense">("cashflow");
 
+  const [summary, setSummary] = useState<any>(null);
+  const [trendData, setTrendData] = useState<any[]>([]);
+  const [categoryData, setCategoryData] = useState<any[]>([]);
+  const [aiInsights, setAiInsights] = useState<string>("Loading insights...");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchReports = async () => {
+      setLoading(true);
+      try {
+        const [sumRes, trRes, catRes] = await Promise.all([
+          statsAPI.summary({ period: dateRange }),
+          statsAPI.trend({ period: dateRange }),
+          statsAPI.byCategory({ period: dateRange, type: activeTab === 'spending' ? 'expense' : activeTab })
+        ]);
+
+        if (sumRes) setSummary(sumRes);
+        // Map trend to correct chart format
+        if (trRes && Array.isArray(trRes)) {
+          setTrendData(trRes.map(t => ({
+            name: typeof t.date === 'string' ? t.date.substring(5, 10).replace('-', '/') : t.date,
+            income: Number(t.income) || 0,
+            expense: Math.abs(Number(t.expense)) || 0
+          })));
+        }
+
+        if (catRes && Array.isArray(catRes)) {
+           // Sort by highest value and limit to 5
+           const sorted = catRes.sort((a,b) => b.total - a.total).slice(0, 5);
+           setCategoryData(sorted.map((c, i) => {
+             const colors = ["#7C5CFF", "#4CC9F0", "#22C55E", "#EF4444", "#FFA500"];
+             return {
+               name: typeof c.category === 'string' ? c.category : (c.category?.name || "Other"),
+               value: Math.abs(Number(c.total)) || 0,
+               color: typeof c.category !== 'string' && c.category?.color ? c.category.color : colors[i % colors.length]
+             };
+           }));
+        }
+
+        try {
+           const insightsRes = await aiAPI.getInsights();
+           if (insightsRes && insightsRes.message) setAiInsights(insightsRes.message);
+           else setAiInsights("You are on track to save nicely this month. Keep monitoring your expenses!");
+        } catch(e) {
+           setAiInsights("You are on track to save nicely this month. Keep monitoring your expenses!");
+        }
+
+      } catch (err) {
+        console.error("Reports API load error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchReports();
+  }, [dateRange, activeTab]);
+
   const tabs = [
     { key: "cashflow" as const, label: "Cash Flow" },
     { key: "spending" as const, label: "Spending" },
-    { key: "income" as const, label: "Income" },
-    { key: "expense" as const, label: "Expense" },
   ];
+
+  const formatCurrency = (amount: number) => {
+    if (amount >= 1000) {
+      return `₹${(amount / 1000).toFixed(1)}K`; // 12.5K
+    }
+    return `₹${amount.toLocaleString()}`;
+  };
+
+  const formatFullCurrency = (amount: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount || 0);
 
   return (
     <div className="px-5 py-6 space-y-6">
@@ -75,28 +126,34 @@ export function ReportsScreen() {
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
               <p className="text-xs text-white/50 mb-2">Income</p>
-              <p className="text-xl font-bold text-[#22C55E]">₹52K</p>
+              <p className="text-xl font-bold text-[#22C55E]">
+                {loading ? "..." : formatCurrency(summary?.totalIncome || 0)}
+              </p>
               <div className="flex items-center gap-1 mt-1">
                 <TrendingUp className="w-3 h-3 text-[#22C55E]" />
-                <span className="text-xs text-[#22C55E]">+8%</span>
+                <span className="text-xs text-[#22C55E]">Good</span>
               </div>
             </div>
 
             <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
               <p className="text-xs text-white/50 mb-2">Expense</p>
-              <p className="text-xl font-bold text-[#EF4444]">₹18.7K</p>
+              <p className="text-xl font-bold text-[#EF4444]">
+                {loading ? "..." : formatCurrency(Math.abs(summary?.totalExpense || 0))}
+              </p>
               <div className="flex items-center gap-1 mt-1">
                 <TrendingDown className="w-3 h-3 text-[#EF4444]" />
-                <span className="text-xs text-[#EF4444]">-11%</span>
+                <span className="text-xs text-[#EF4444]">High</span>
               </div>
             </div>
 
             <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
               <p className="text-xs text-white/50 mb-2">Net</p>
-              <p className="text-xl font-bold text-white">₹33.3K</p>
+              <p className="text-xl font-bold text-white">
+                {loading ? "..." : formatCurrency((summary?.totalIncome || 0) - Math.abs(summary?.totalExpense || 0))}
+              </p>
               <div className="flex items-center gap-1 mt-1">
                 <TrendingUp className="w-3 h-3 text-[#22C55E]" />
-                <span className="text-xs text-[#22C55E]">+35%</span>
+                <span className="text-xs text-[#22C55E]">Solid</span>
               </div>
             </div>
           </div>
@@ -153,11 +210,15 @@ export function ReportsScreen() {
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
               <p className="text-xs text-white/50 mb-2">Total Spent</p>
-              <p className="text-2xl font-bold text-white">₹18,700</p>
+              <p className="text-2xl font-bold text-white">
+                {loading ? "..." : formatFullCurrency(Math.abs(summary?.totalExpense || 0))}
+              </p>
             </div>
             <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
-              <p className="text-xs text-white/50 mb-2">Avg/Day</p>
-              <p className="text-2xl font-bold text-white">₹623</p>
+              <p className="text-xs text-white/50 mb-2">Total In</p>
+              <p className="text-2xl font-bold text-[#22C55E]">
+                {loading ? "..." : formatFullCurrency(summary?.totalIncome || 0)}
+              </p>
             </div>
           </div>
 
@@ -215,19 +276,17 @@ export function ReportsScreen() {
 
           {/* Top Expenses */}
           <div className="bg-[#1B2130] rounded-2xl p-5 border border-white/5">
-            <h3 className="text-lg font-semibold text-white mb-4">Top Expenses</h3>
+            <h3 className="text-lg font-semibold text-white mb-4">Top Spending Categories</h3>
             <div className="space-y-3">
-              {[
-                { name: "Swiggy", category: "Food", amount: 450 },
-                { name: "Electricity Bill", category: "Bills", amount: 1250 },
-                { name: "Uber", category: "Transport", amount: 320 },
-              ].map((item, i) => (
+              {categoryData.length === 0 && !loading && (
+                 <p className="text-sm text-white/50 text-center py-4">No spending data</p>
+              )}
+              {categoryData.map((item, i) => (
                 <div key={i} className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-white">{item.name}</p>
-                    <p className="text-xs text-white/50">{item.category}</p>
                   </div>
-                  <p className="text-sm font-semibold text-white">₹{item.amount}</p>
+                  <p className="text-sm font-semibold text-white">{formatFullCurrency(item.value)}</p>
                 </div>
               ))}
             </div>
@@ -244,7 +303,7 @@ export function ReportsScreen() {
           <div>
             <h3 className="text-lg font-semibold text-white mb-1">AI Insights</h3>
             <p className="text-sm text-white/60">
-              Your spending decreased by 11% this month. You're on track to save ₹35,000 by month end. Consider reducing food expenses to meet your savings goal faster.
+              {aiInsights}
             </p>
           </div>
         </div>

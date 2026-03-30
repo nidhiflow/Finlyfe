@@ -1,23 +1,80 @@
-import { useState } from "react";
-import { Search, Filter, Bookmark, Star, Repeat, Utensils, Car, Zap, Coffee, Trash2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Search, Filter, Bookmark, Star, Repeat, Utensils, Car, Zap, Coffee, Trash2, ArrowUpDown } from "lucide-react";
+import { transactionsAPI, bookmarksAPI, API_BASE_URL } from "../services/api";
 
 export function TransactionsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [txRes, bookmarksRes] = await Promise.all([
+          transactionsAPI.getAll(),
+          bookmarksAPI.getIds()
+        ]);
+        if (txRes) setTransactions(txRes);
+        if (bookmarksRes) setBookmarkedIds(new Set(bookmarksRes));
+      } catch (err) {
+        console.error("Failed to fetch transactions:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   const quickAddChips = ["Food", "Transport", "Bills", "Shopping"];
 
-  const transactions = [
-    { id: 1, icon: Utensils, name: "Swiggy", note: "Lunch", account: "HDFC Bank", amount: -450, date: "Today", bookmarked: false },
-    { id: 2, icon: Car, name: "Uber", note: "To office", account: "Paytm", amount: -320, date: "Today", bookmarked: true },
-    { id: 3, icon: Coffee, name: "Starbucks", note: "Coffee", account: "HDFC Bank", amount: -280, date: "Today", bookmarked: false },
-    { id: 4, icon: Zap, name: "Electricity Bill", note: "March payment", account: "HDFC Bank", amount: -1250, date: "Yesterday", bookmarked: false },
-    { id: 5, icon: Utensils, name: "Zomato", note: "Dinner", account: "HDFC Bank", amount: -650, date: "Yesterday", bookmarked: false },
-  ];
+  const filteredTransactions = useMemo(() => {
+    if (!searchQuery) return transactions;
+    return transactions.filter(t => 
+      t.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.category?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.account?.name?.toLowerCase().includes(searchQuery.toLowerCase()) 
+    );
+  }, [transactions, searchQuery]);
 
-  const bookmarkedTxs = transactions.filter(t => t.bookmarked);
-  const todayTxs = transactions.filter(t => t.date === "Today");
-  const yesterdayTxs = transactions.filter(t => t.date === "Yesterday");
+  const bookmarkedTxs = filteredTransactions.filter(t => bookmarkedIds.has(t.id));
+
+  const groupedTransactions = useMemo(() => {
+    const today = new Date().toLocaleDateString();
+    const yesterday = new Date(Date.now() - 86400000).toLocaleDateString();
+    
+    return filteredTransactions.reduce((acc: any, tx: any) => {
+      // Don't duplicate bookmarked items in the main list to keep it exactly like Figma's logic? 
+      // Actually Figma showed them. Let's group all by date.
+      const dateStr = new Date(tx.date).toLocaleDateString();
+      let key = dateStr;
+      if (dateStr === today) key = "Today";
+      else if (dateStr === yesterday) key = "Yesterday";
+      
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(tx);
+      return acc;
+    }, {});
+  }, [filteredTransactions]);
+
+  const toggleBookmark = async (id: string) => {
+    try {
+      if (bookmarkedIds.has(id)) {
+        await bookmarksAPI.remove(id);
+        setBookmarkedIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      } else {
+        await bookmarksAPI.add(id);
+        setBookmarkedIds(prev => new Set(prev).add(id));
+      }
+    } catch (err) {
+      console.error("Failed to toggle bookmark", err);
+    }
+  };
 
   return (
     <div className="pb-6">
@@ -100,7 +157,12 @@ export function TransactionsScreen() {
             </div>
             <div className="space-y-1">
               {bookmarkedTxs.map((tx) => (
-                <TransactionRow key={tx.id} transaction={tx} />
+                <TransactionRow 
+                  key={tx.id} 
+                  transaction={tx} 
+                  isBookmarked={true}
+                  onToggleBookmark={() => toggleBookmark(tx.id)}
+                />
               ))}
             </div>
           </div>
@@ -144,55 +206,73 @@ export function TransactionsScreen() {
           </div>
         </div>
 
-        {/* Today */}
-        <div>
-          <h3 className="text-sm font-semibold text-white mb-3 uppercase tracking-wider">Today</h3>
-          <div className="space-y-1">
-            {todayTxs.map((tx) => (
-              <TransactionRow key={tx.id} transaction={tx} />
-            ))}
+        {/* Grouped by Date */}
+        {loading ? (
+          <div className="text-center py-10">
+            <p className="text-sm text-white/50">Loading transactions...</p>
           </div>
-        </div>
-
-        {/* Yesterday */}
-        <div>
-          <h3 className="text-sm font-semibold text-white mb-3 uppercase tracking-wider">Yesterday</h3>
-          <div className="space-y-1">
-            {yesterdayTxs.map((tx) => (
-              <TransactionRow key={tx.id} transaction={tx} />
-            ))}
+        ) : Object.keys(groupedTransactions).length > 0 ? (
+          Object.keys(groupedTransactions).map(dateKey => (
+            <div key={dateKey}>
+              <h3 className="text-sm font-semibold text-white mb-3 uppercase tracking-wider">{dateKey}</h3>
+              <div className="space-y-1">
+                {groupedTransactions[dateKey].map((tx: any) => (
+                  <TransactionRow 
+                    key={tx.id} 
+                    transaction={tx} 
+                    isBookmarked={bookmarkedIds.has(tx.id)}
+                    onToggleBookmark={() => toggleBookmark(tx.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="bg-[#1B2130] rounded-2xl p-6 text-center border border-white/5 shadow-lg">
+            <div className="w-16 h-16 rounded-full bg-[#7C5CFF]/10 flex items-center justify-center mx-auto mb-4">
+              <Utensils className="w-8 h-8 text-[#7C5CFF]" />
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">No Transactions</h3>
+            <p className="text-sm text-white/50">You haven't made any transactions matching this criteria.</p>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
-function TransactionRow({ transaction }: { transaction: any }) {
-  const Icon = transaction.icon;
-  const [bookmarked, setBookmarked] = useState(transaction.bookmarked);
+function TransactionRow({ transaction, isBookmarked, onToggleBookmark }: { transaction: any, isBookmarked: boolean, onToggleBookmark: () => void }) {
+  const isExpense = transaction.type === "expense";
+  const color = isExpense ? "#FF6B6B" : "#22C55E";
+  const formatCurrency = (amount: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount || 0);
 
   return (
     <div className="flex items-center gap-3 p-3 rounded-xl bg-[#1B2130] border border-white/5 group">
-      <div className="w-11 h-11 rounded-xl bg-[#7C5CFF]/20 flex items-center justify-center">
-        <Icon className="w-5 h-5 text-[#7C5CFF]" />
+      <div className="w-11 h-11 rounded-xl flex items-center justify-center p-2" style={{ backgroundColor: `${color}20` }}>
+        {transaction.category?.icon ? (
+          <img src={transaction.category.icon.startsWith('http') ? transaction.category.icon : `${API_BASE_URL}${transaction.category.icon}`} className="w-6 h-6 object-contain" alt="" />
+        ) : (
+          <ArrowUpDown className="w-5 h-5 text-[#7C5CFF]" style={{ color: color }} />
+        )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white truncate">{transaction.name}</p>
-        <p className="text-xs text-white/50 truncate">{transaction.note} • {transaction.account}</p>
+        <p className="text-sm font-medium text-white truncate">{transaction.title || "Transaction"}</p>
+        <p className="text-xs text-white/50 truncate">
+          {transaction.category?.name || "Other"} • {transaction.account?.name || "Account"}
+        </p>
       </div>
       <div className="flex items-center gap-3">
         <div className="text-right">
-          <p className={`text-sm font-semibold ${transaction.amount > 0 ? "text-[#22C55E]" : "text-white"}`}>
-            {transaction.amount > 0 ? "+" : ""}₹{Math.abs(transaction.amount)}
+          <p className={`text-sm font-semibold ${isExpense ? "text-white" : "text-[#22C55E]"}`}>
+            {isExpense ? "-" : "+"} {formatCurrency(transaction.amount)}
           </p>
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
-            onClick={() => setBookmarked(!bookmarked)}
+            onClick={onToggleBookmark}
             className="w-8 h-8 rounded-lg hover:bg-white/5 flex items-center justify-center"
           >
-            <Star className={`w-4 h-4 ${bookmarked ? "text-[#FFD700] fill-[#FFD700]" : "text-white/40"}`} />
+            <Star className={`w-4 h-4 ${isBookmarked ? "text-[#FFD700] fill-[#FFD700]" : "text-white/40"}`} />
           </button>
           <button className="w-8 h-8 rounded-lg hover:bg-white/5 flex items-center justify-center">
             <Trash2 className="w-4 h-4 text-[#EF4444]" />

@@ -1,53 +1,40 @@
-import { useState } from "react";
-import { Plus, Target, TrendingUp, Calendar } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Target, TrendingUp, Calendar, Target as TargetIcon } from "lucide-react";
+import { savingsGoalsAPI } from "../services/api";
 
 export function GoalsScreen() {
-  const goals = [
-    {
-      id: 1,
-      name: "Emergency Fund",
-      emoji: "🏥",
-      target: 100000,
-      saved: 45000,
-      targetMonth: "Dec 2026",
-      color: "#7C5CFF",
-      trackingMode: "Manual",
-    },
-    {
-      id: 2,
-      name: "Vacation to Bali",
-      emoji: "✈️",
-      target: 80000,
-      saved: 62000,
-      targetMonth: "Jun 2026",
-      color: "#4CC9F0",
-      trackingMode: "Auto",
-    },
-    {
-      id: 3,
-      name: "New Laptop",
-      emoji: "💻",
-      target: 120000,
-      saved: 28000,
-      targetMonth: "Aug 2026",
-      color: "#22C55E",
-      trackingMode: "Manual",
-    },
-    {
-      id: 4,
-      name: "Down Payment - Car",
-      emoji: "🚗",
-      target: 200000,
-      saved: 85000,
-      targetMonth: "Mar 2027",
-      color: "#FFA500",
-      trackingMode: "Auto",
-    },
-  ];
+  const [goals, setGoals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const totalTarget = goals.reduce((sum, g) => sum + g.target, 0);
-  const totalSaved = goals.reduce((sum, g) => sum + g.saved, 0);
-  const overallProgress = (totalSaved / totalTarget) * 100;
+  const fetchGoals = async () => {
+    try {
+      const data = await savingsGoalsAPI.list();
+      if (data) setGoals(data);
+    } catch (err) {
+      console.error("Failed to load goals", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGoals();
+  }, []);
+
+  const formatCurrency = (amount: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount || 0);
+
+  const handleRecordSavings = async (id: string) => {
+    try {
+      await savingsGoalsAPI.recordSavings(id, 100); // Add 100 as demo
+      fetchGoals();
+    } catch (err) {
+      console.error("Failed to record savings", err);
+    }
+  };
+
+  const totalTarget = goals.reduce((sum, g) => sum + (Number(g.targetAmount) || 0), 0);
+  const totalSaved = goals.reduce((sum, g) => sum + (Number(g.currentAmount) || 0), 0);
+  const overallProgress = totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0;
 
   return (
     <div className="px-5 py-6 space-y-6">
@@ -62,7 +49,7 @@ export function GoalsScreen() {
           {overallProgress.toFixed(0)}%
         </p>
         <p className="text-white/80 text-sm mb-4">
-          ₹{totalSaved.toLocaleString()} of ₹{totalTarget.toLocaleString()}
+          {formatCurrency(totalSaved)} of {formatCurrency(totalTarget)}
         </p>
 
         <div className="bg-white/20 backdrop-blur-sm rounded-full h-3 overflow-hidden">
@@ -83,9 +70,28 @@ export function GoalsScreen() {
       <div>
         <h3 className="text-lg font-semibold text-white mb-4">Your Goals</h3>
         <div className="space-y-4">
-          {goals.map((goal) => {
-            const progress = (goal.saved / goal.target) * 100;
-            const remaining = goal.target - goal.saved;
+          {loading ? (
+             <div className="text-center py-8">
+               <p className="text-sm text-white/50">Loading goals...</p>
+             </div>
+          ) : goals.length === 0 ? (
+             <div className="text-center py-8 bg-[#1B2130] rounded-2xl border border-white/5">
+                <TargetIcon className="w-8 h-8 text-white/20 mx-auto mb-2" />
+                <p className="text-sm text-white/50">No goals created yet.</p>
+             </div>
+          ) : goals.map((goal) => {
+            const target = Number(goal.targetAmount) || 0;
+            const saved = Number(goal.currentAmount) || 0;
+            const progress = target > 0 ? (saved / target) * 100 : 0;
+            const remaining = target - saved;
+            const color = goal.color || "#7C5CFF";
+            const isFinished = progress >= 100;
+
+            let formattedDate = "No date";
+            if (goal.deadline) {
+              const d = new Date(goal.deadline);
+              formattedDate = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+            }
 
             return (
               <div
@@ -97,23 +103,23 @@ export function GoalsScreen() {
                   <div className="flex items-center gap-3">
                     <div
                       className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
-                      style={{ backgroundColor: `${goal.color}20` }}
+                      style={{ backgroundColor: `${color}20` }}
                     >
-                      {goal.emoji}
+                      {goal.icon ? (
+                        goal.icon.startsWith("http") ? <img src={goal.icon} className="w-6 h-6 object-contain" alt="" /> : goal.icon
+                      ) : "🎯"}
                     </div>
                     <div>
                       <h4 className="text-white font-semibold">{goal.name}</h4>
                       <div className="flex items-center gap-2 mt-1">
                         <Calendar className="w-3 h-3 text-white/50" />
-                        <p className="text-xs text-white/50">{goal.targetMonth}</p>
-                        <span className="text-white/30">•</span>
-                        <p className="text-xs text-white/50">{goal.trackingMode}</p>
+                        <p className="text-xs text-white/50">{formattedDate}</p>
                       </div>
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-white">{progress.toFixed(0)}%</p>
+                    <p className="text-2xl font-bold text-white">{Math.min(progress, 100).toFixed(0)}%</p>
                   </div>
                 </div>
 
@@ -121,29 +127,31 @@ export function GoalsScreen() {
                 <div className="bg-white/10 rounded-full h-2.5 overflow-hidden mb-3">
                   <div
                     className="h-full rounded-full transition-all"
-                    style={{ width: `${progress}%`, backgroundColor: goal.color }}
+                    style={{ width: `${Math.min(progress, 100)}%`, backgroundColor: color }}
                   />
                 </div>
 
                 {/* Stats */}
                 <div className="flex items-center justify-between text-sm mb-4">
                   <span className="text-white/70">
-                    ₹{goal.saved.toLocaleString()} saved
+                    {formatCurrency(saved)} saved
                   </span>
                   <span className="text-white/70">
-                    ₹{remaining.toLocaleString()} to go
+                    {remaining > 0 ? `${formatCurrency(remaining)} to go` : "Complete!"}
                   </span>
                 </div>
 
                 {/* Action Button */}
                 <button
-                  className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors"
+                  onClick={() => handleRecordSavings(goal.id)}
+                  disabled={isFinished}
+                  className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors opacity-100 disabled:opacity-50"
                   style={{
-                    backgroundColor: `${goal.color}20`,
-                    color: goal.color,
+                    backgroundColor: `${color}20`,
+                    color: color,
                   }}
                 >
-                  + Record Savings
+                  {isFinished ? "✓ Goal Met" : "+ Add ₹100 Shortcut"}
                 </button>
               </div>
             );

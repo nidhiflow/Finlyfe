@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Calculator, Calendar, Camera, Image, Repeat, ScanLine } from "lucide-react";
+import { Calculator, Calendar, Camera, Image as ImageIcon, Repeat, ScanLine } from "lucide-react";
+import { categoriesAPI, accountsAPI, transactionsAPI } from "../services/api";
 
 export function AddTransactionScreen() {
   const navigate = useNavigate();
@@ -12,17 +13,65 @@ export function AddTransactionScreen() {
   const [note, setNote] = useState("");
   const [date, setDate] = useState("Today");
   const [recurring, setRecurring] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  
+  const [apiCategories, setApiCategories] = useState<any[]>([]);
+  const [apiAccounts, setApiAccounts] = useState<any[]>([]);
 
-  const categories = {
-    expense: ["Food & Dining", "Transport", "Bills", "Shopping", "Entertainment", "Healthcare", "Education", "Other"],
-    income: ["Salary", "Freelance", "Investment", "Gift", "Refund", "Other"],
-  };
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [cats, accs] = await Promise.all([
+          categoriesAPI.list(),
+          accountsAPI.list()
+        ]);
+        if (cats) setApiCategories(cats);
+        if (accs) {
+          setApiAccounts(accs);
+          if (accs.length > 0) setAccount(accs[0].id);
+        }
+      } catch (err) {
+        console.error("Failed to load options", err);
+      }
+    };
+    loadData();
+  }, []);
 
-  const accounts = ["HDFC Bank", "ICICI Savings", "Paytm Wallet", "Cash", "HDFC Credit Card"];
+  const currentCategories = apiCategories.filter(c => c.type === (type === "transfer" ? "expense" : type));
 
-  const handleSave = () => {
-    // Save transaction logic
-    navigate("/transactions");
+  // Auto-select first category when type changes or categories load
+  useEffect(() => {
+    if (currentCategories.length > 0 && !currentCategories.find(c => c.id === category)) {
+      setCategory(currentCategories[0].id);
+    }
+  }, [type, apiCategories, category, currentCategories]);
+
+  const handleSave = async () => {
+    if (!amount || isNaN(Number(amount))) {
+      setError("Please enter a valid amount");
+      return;
+    }
+    setError("");
+    setLoading(true);
+
+    try {
+      await transactionsAPI.create({
+        type,
+        amount: Number(amount),
+        categoryId: category,
+        accountId: account,
+        toAccountId: type === "transfer" ? toAccount || undefined : undefined,
+        date: new Date().toISOString(), // Handling "Today" simply for now
+        title: note || "Transaction",
+        notes: note
+      });
+      navigate("/dashboard/transactions");
+    } catch (err: any) {
+      setError(err.message || "Failed to save transaction");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -75,23 +124,32 @@ export function AddTransactionScreen() {
         </button>
       </div>
 
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-red-400 text-sm text-center">
+          {error}
+        </div>
+      )}
+
       {/* Category */}
       <div>
         <label className="text-sm text-white/70 mb-3 block">Category</label>
         <div className="grid grid-cols-2 gap-2">
-          {categories[type === "transfer" ? "expense" : type].map((cat) => (
+          {currentCategories.map((cat) => (
             <button
-              key={cat}
-              onClick={() => setCategory(cat)}
-              className={`py-3 rounded-xl text-sm font-medium transition-colors ${
-                category === cat
+              key={cat.id}
+              onClick={() => setCategory(cat.id)}
+              className={`py-3 px-2 rounded-xl text-sm font-medium transition-colors truncate ${
+                category === cat.id
                   ? "bg-[#7C5CFF] text-white"
                   : "bg-[#1B2130] text-white/70 border border-white/5 hover:border-[#7C5CFF]/30"
               }`}
             >
-              {cat}
+              {cat.name}
             </button>
           ))}
+          {currentCategories.length === 0 && (
+            <div className="col-span-2 text-center py-3 text-white/40 text-sm">No categories found</div>
+          )}
         </div>
       </div>
 
@@ -103,11 +161,12 @@ export function AddTransactionScreen() {
         <select
           value={account}
           onChange={(e) => setAccount(e.target.value)}
-          className="w-full px-4 py-3.5 bg-[#1B2130] border border-white/10 rounded-xl text-white focus:border-[#7C5CFF] focus:outline-none"
+          className="w-full px-4 py-3.5 bg-[#1B2130] border border-white/10 rounded-xl text-white focus:border-[#7C5CFF] focus:outline-none appearance-none"
         >
-          {accounts.map((acc) => (
-            <option key={acc} value={acc}>{acc}</option>
+          {apiAccounts.map((acc) => (
+            <option key={acc.id} value={acc.id}>{acc.name}</option>
           ))}
+          {apiAccounts.length === 0 && <option value="">No accounts available</option>}
         </select>
       </div>
 
@@ -118,11 +177,11 @@ export function AddTransactionScreen() {
           <select
             value={toAccount}
             onChange={(e) => setToAccount(e.target.value)}
-            className="w-full px-4 py-3.5 bg-[#1B2130] border border-white/10 rounded-xl text-white focus:border-[#7C5CFF] focus:outline-none"
+            className="w-full px-4 py-3.5 bg-[#1B2130] border border-white/10 rounded-xl text-white focus:border-[#7C5CFF] focus:outline-none appearance-none"
           >
             <option value="">Select account</option>
-            {accounts.map((acc) => (
-              <option key={acc} value={acc}>{acc}</option>
+            {apiAccounts.filter(a => a.id !== account).map((acc) => (
+              <option key={acc.id} value={acc.id}>{acc.name}</option>
             ))}
           </select>
         </div>
@@ -158,7 +217,7 @@ export function AddTransactionScreen() {
             <span className="text-sm">Camera</span>
           </button>
           <button className="flex items-center justify-center gap-2 py-3 bg-[#1B2130] border border-white/10 rounded-xl text-white hover:border-[#7C5CFF]/30">
-            <Image className="w-5 h-5" />
+            <ImageIcon className="w-5 h-5" />
             <span className="text-sm">Gallery</span>
           </button>
         </div>
@@ -196,9 +255,10 @@ export function AddTransactionScreen() {
       {/* Save Button */}
       <button
         onClick={handleSave}
-        className="w-full py-4 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold shadow-lg shadow-[#7C5CFF]/30"
+        disabled={loading}
+        className="w-full py-4 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold shadow-lg shadow-[#7C5CFF]/30 opacity-100 disabled:opacity-70 transition-opacity"
       >
-        Save Transaction
+        {loading ? "Saving..." : "Save Transaction"}
       </button>
     </div>
   );
