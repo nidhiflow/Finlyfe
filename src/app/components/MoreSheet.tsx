@@ -12,13 +12,13 @@ export function MoreSheet({ isOpen, onClose }: MoreSheetProps) {
   const [darkMode, setDarkMode] = useState(true);
 
   const menuItems = [
-    { icon: Target, label: "Budget", path: "/budget" },
-    { icon: Calendar, label: "Calendar", path: "/calendar" },
-    { icon: Bot, label: "AI Agent", path: "/ai-agent" },
-    { icon: PiggyBank, label: "Goals", path: "/goals" },
-    { icon: Wallet, label: "Accounts", path: "/accounts" },
-    { icon: Grid3x3, label: "Categories", path: "/categories" },
-    { icon: Settings, label: "Settings", path: "/settings" },
+    { icon: Target, label: "Budget", path: "/dashboard/budget" },
+    { icon: Calendar, label: "Calendar", path: "/dashboard/calendar" },
+    { icon: Bot, label: "AI Agent", path: "/dashboard/ai-agent" },
+    { icon: PiggyBank, label: "Goals", path: "/dashboard/goals" },
+    { icon: Wallet, label: "Accounts", path: "/dashboard/accounts" },
+    { icon: Grid3x3, label: "Categories", path: "/dashboard/categories" },
+    { icon: Settings, label: "Settings", path: "/dashboard/settings" },
   ];
 
   const handleNavigate = (path: string) => {
@@ -55,13 +55,13 @@ export function MoreSheet({ isOpen, onClose }: MoreSheetProps) {
             <p className="text-xs text-white/50 mb-3 uppercase tracking-wider">Quick Actions</p>
             <div className="flex gap-2">
               <button
-                onClick={() => handleNavigate("/reports")}
+                onClick={() => handleNavigate("/dashboard/reports")}
                 className="flex-1 py-2.5 rounded-xl bg-[#0D0F14] border border-white/5 text-sm text-white hover:border-[#7C5CFF]/30"
               >
                 Reports
               </button>
               <button
-                onClick={() => handleNavigate("/transactions")}
+                onClick={() => handleNavigate("/dashboard/transactions")}
                 className="flex-1 py-2.5 rounded-xl bg-[#0D0F14] border border-white/5 text-sm text-white hover:border-[#7C5CFF]/30"
               >
                 <Search className="w-4 h-4 mx-auto" />

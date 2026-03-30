@@ -2,6 +2,9 @@ import { createBrowserRouter } from "react-router";
 import { MainLayout } from "./layouts/MainLayout";
 import { AuthLayout } from "./layouts/AuthLayout";
 
+// Onboarding
+import { OnboardingScreen } from "./screens/OnboardingScreen";
+
 // Auth screens
 import { LoginScreen } from "./screens/auth/LoginScreen";
 import { SignupScreen } from "./screens/auth/SignupScreen";
@@ -22,16 +25,32 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 
 export const router = createBrowserRouter([
   {
-    path: "/auth",
+    path: "/",
+    Component: OnboardingScreen,
+  },
+  {
+    path: "/login",
     Component: AuthLayout,
     children: [
-      { path: "login", Component: LoginScreen },
-      { path: "signup", Component: SignupScreen },
-      { path: "forgot-password", Component: ForgotPasswordScreen },
+      { index: true, Component: LoginScreen },
     ],
   },
   {
-    path: "/",
+    path: "/signup",
+    Component: AuthLayout,
+    children: [
+      { index: true, Component: SignupScreen },
+    ],
+  },
+  {
+    path: "/forgot-password",
+    Component: AuthLayout,
+    children: [
+      { index: true, Component: ForgotPasswordScreen },
+    ],
+  },
+  {
+    path: "/dashboard",
     Component: MainLayout,
     children: [
       { index: true, Component: DashboardScreen },

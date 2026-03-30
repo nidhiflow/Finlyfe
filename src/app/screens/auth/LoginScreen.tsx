@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { authAPI } from "../../services/api";
 
 export function LoginScreen() {
   const navigate = useNavigate();
@@ -9,15 +10,62 @@ export function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showOTP, setShowOTP] = useState(false);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleLogin = () => {
-    // Mock: Show OTP step
-    setShowOTP(true);
+  const handleLogin = async () => {
+    setError("");
+    setLoading(true);
+
+    try {
+      const response = await authAPI.login({ email, password });
+      
+      if (response.requireOTP) {
+        // Backend requires OTP
+        setShowOTP(true);
+      } else if (response.token && response.user) {
+        // Direct login without OTP
+        navigate("/dashboard");
+      }
+    } catch (err: any) {
+      setError(err.message || "Login failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleOTPVerify = () => {
-    // Mock: Navigate to dashboard
-    navigate("/");
+  const handleOTPVerify = async () => {
+    const otpCode = otp.join("");
+    
+    if (otpCode.length !== 6) {
+      setError("Please enter a valid 6-digit code");
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+
+    try {
+      await authAPI.verifyLoginOTP({ email, otp: otpCode });
+      navigate("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Invalid OTP. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setError("");
+    setLoading(true);
+
+    try {
+      await authAPI.login({ email, password });
+    } catch (err: any) {
+      setError(err.message || "Failed to resend code. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleOTPChange = (index: number, value: string) => {
@@ -49,6 +97,12 @@ export function LoginScreen() {
         <>
           {/* Login Form */}
           <div className="space-y-4 flex-1">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+                <p className="text-red-500 text-sm">{error}</p>
+              </div>
+            )}
+
             <div>
               <label className="text-sm text-white/70 mb-2 block">Email</label>
               <div className="relative">
@@ -90,7 +144,7 @@ export function LoginScreen() {
 
             <div className="flex justify-end">
               <button
-                onClick={() => navigate("/auth/forgot-password")}
+                onClick={() => navigate("/forgot-password")}
                 className="text-sm text-[#7C5CFF] hover:text-[#9D7EFF]"
               >
                 Forgot password?
@@ -99,9 +153,10 @@ export function LoginScreen() {
 
             <button
               onClick={handleLogin}
-              className="w-full py-4 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold shadow-lg shadow-[#7C5CFF]/30 hover:shadow-[#7C5CFF]/50 transition-all"
+              disabled={loading}
+              className="w-full py-4 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold shadow-lg shadow-[#7C5CFF]/30 hover:shadow-[#7C5CFF]/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sign In
+              {loading ? "Signing In..." : "Sign In"}
             </button>
 
             <div className="relative py-4">
@@ -122,7 +177,7 @@ export function LoginScreen() {
           <div className="py-6 text-center">
             <span className="text-white/50">Don't have an account? </span>
             <button
-              onClick={() => navigate("/auth/signup")}
+              onClick={() => navigate("/signup")}
               className="text-[#7C5CFF] font-semibold hover:text-[#9D7EFF]"
             >
               Sign Up
@@ -133,6 +188,12 @@ export function LoginScreen() {
         <>
           {/* OTP Verification */}
           <div className="flex-1">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-4">
+                <p className="text-red-500 text-sm">{error}</p>
+              </div>
+            )}
+
             <div className="bg-[#1B2130] border border-white/10 rounded-2xl p-6 mb-6">
               <h2 className="text-xl font-semibold text-white mb-2">Verify OTP</h2>
               <p className="text-sm text-white/50 mb-6">
@@ -154,15 +215,20 @@ export function LoginScreen() {
                 ))}
               </div>
 
-              <button className="w-full text-sm text-[#7C5CFF] hover:text-[#9D7EFF] mb-4">
-                Resend Code
+              <button
+                onClick={handleResendOTP}
+                disabled={loading}
+                className="w-full text-sm text-[#7C5CFF] hover:text-[#9D7EFF] mb-4 disabled:opacity-50"
+              >
+                {loading ? "Sending..." : "Resend Code"}
               </button>
 
               <button
                 onClick={handleOTPVerify}
-                className="w-full py-4 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold shadow-lg shadow-[#7C5CFF]/30"
+                disabled={loading}
+                className="w-full py-4 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold shadow-lg shadow-[#7C5CFF]/30 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Verify & Continue
+                {loading ? "Verifying..." : "Verify & Continue"}
               </button>
             </div>
 

@@ -1,22 +1,68 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { User, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { authAPI } from "../../services/api";
 
 export function SignupScreen() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showOTP, setShowOTP] = useState(false);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSignup = () => {
-    setShowOTP(true);
+  const handleSignup = async () => {
+    setError("");
+    setLoading(true);
+    
+    try {
+      await authAPI.signup({ email, password, name, phone });
+      setShowOTP(true);
+    } catch (err: any) {
+      setError(err.message || "Signup failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleOTPVerify = () => {
-    navigate("/");
+  const handleOTPVerify = async () => {
+    const otpCode = otp.join("");
+    
+    if (otpCode.length !== 6) {
+      setError("Please enter a valid 6-digit code");
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+
+    try {
+      await authAPI.verifySignupOTP({ email, otp: otpCode });
+      navigate("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Invalid OTP. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    setError("");
+    setLoading(true);
+
+    try {
+      await authAPI.signup({ email, password, name, phone });
+      setError(""); // Clear any errors
+      // Show success message (optional)
+    } catch (err: any) {
+      setError(err.message || "Failed to resend code. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleOTPChange = (index: number, value: string) => {
@@ -45,6 +91,12 @@ export function SignupScreen() {
       {!showOTP ? (
         <>
           <div className="space-y-4 flex-1">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+                <p className="text-red-500 text-sm">{error}</p>
+              </div>
+            )}
+
             <div>
               <label className="text-sm text-white/70 mb-2 block">Full Name</label>
               <div className="relative">
@@ -68,6 +120,20 @@ export function SignupScreen() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
+                  className="w-full pl-12 pr-4 py-3.5 bg-[#1B2130] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:border-[#7C5CFF] focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm text-white/70 mb-2 block">Phone</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="123-456-7890"
                   className="w-full pl-12 pr-4 py-3.5 bg-[#1B2130] border border-white/10 rounded-xl text-white placeholder:text-white/30 focus:border-[#7C5CFF] focus:outline-none"
                 />
               </div>
@@ -100,9 +166,10 @@ export function SignupScreen() {
 
             <button
               onClick={handleSignup}
-              className="w-full py-4 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold shadow-lg shadow-[#7C5CFF]/30 hover:shadow-[#7C5CFF]/50 transition-all"
+              disabled={loading}
+              className="w-full py-4 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold shadow-lg shadow-[#7C5CFF]/30 hover:shadow-[#7C5CFF]/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create Account
+              {loading ? "Creating Account..." : "Create Account"}
             </button>
 
             <p className="text-xs text-white/40 text-center px-4">
@@ -113,7 +180,7 @@ export function SignupScreen() {
           <div className="py-6 text-center">
             <span className="text-white/50">Already have an account? </span>
             <button
-              onClick={() => navigate("/auth/login")}
+              onClick={() => navigate("/login")}
               className="text-[#7C5CFF] font-semibold hover:text-[#9D7EFF]"
             >
               Sign In
@@ -123,6 +190,12 @@ export function SignupScreen() {
       ) : (
         <>
           <div className="flex-1">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-4">
+                <p className="text-red-500 text-sm">{error}</p>
+              </div>
+            )}
+            
             <div className="bg-[#1B2130] border border-white/10 rounded-2xl p-6 mb-6">
               <h2 className="text-xl font-semibold text-white mb-2">Verify Your Email</h2>
               <p className="text-sm text-white/50 mb-6">
@@ -144,15 +217,20 @@ export function SignupScreen() {
                 ))}
               </div>
 
-              <button className="w-full text-sm text-[#7C5CFF] hover:text-[#9D7EFF] mb-4">
-                Resend Code
+              <button
+                onClick={handleResendOTP}
+                disabled={loading}
+                className="w-full text-sm text-[#7C5CFF] hover:text-[#9D7EFF] mb-4 disabled:opacity-50"
+              >
+                {loading ? "Sending..." : "Resend Code"}
               </button>
 
               <button
                 onClick={handleOTPVerify}
-                className="w-full py-4 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold shadow-lg shadow-[#7C5CFF]/30"
+                disabled={loading}
+                className="w-full py-4 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold shadow-lg shadow-[#7C5CFF]/30 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Verify & Get Started
+                {loading ? "Verifying..." : "Verify & Get Started"}
               </button>
             </div>
 
