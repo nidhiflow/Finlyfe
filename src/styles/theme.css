@@ -126,6 +126,7 @@
 
   body {
     @apply bg-background text-foreground;
+    background-color: #0D0F14;
   }
 
   /**
@@ -177,5 +178,18 @@
     font-size: var(--text-base);
     font-weight: var(--font-weight-normal);
     line-height: 1.5;
+  }
+
+  @keyframes slide-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.3s ease-out;
   }
 }

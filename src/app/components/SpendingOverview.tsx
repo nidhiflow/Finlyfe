@@ -1,4 +1,4 @@
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell } from 'recharts';
 
 const data = [
   { name: 'Food', value: 8200, color: '#7C5CFF' },
@@ -15,24 +15,22 @@ export function SpendingOverview() {
       <h3 className="text-lg font-semibold text-white mb-4">Spending Overview</h3>
       
       <div className="flex items-center gap-6">
-        <div className="w-32 h-32">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={data}
-                cx="50%"
-                cy="50%"
-                innerRadius={40}
-                outerRadius={60}
-                paddingAngle={4}
-                dataKey="value"
-              >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
+        <div className="w-32 h-32 flex-shrink-0">
+          <PieChart width={128} height={128}>
+            <Pie
+              data={data}
+              cx={64}
+              cy={64}
+              innerRadius={40}
+              outerRadius={60}
+              paddingAngle={4}
+              dataKey="value"
+            >
+              {data.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} />
+              ))}
+            </Pie>
+          </PieChart>
         </div>
         
         <div className="flex-1 space-y-3">
