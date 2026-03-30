@@ -14,7 +14,7 @@ export function CalendarScreen() {
       try {
         // Fetch all transactions (ideally should be filtered by date, but since API doesn't guarantee filter support, we'll fetch and filter client-side for now)
         const allTx = await transactionsAPI.getAll();
-        if (allTx) setTransactions(allTx);
+        if (Array.isArray(allTx)) setTransactions(allTx);
       } catch (error) {
         console.error("Failed to load transactions", error);
       } finally {

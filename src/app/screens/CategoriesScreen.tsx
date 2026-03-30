@@ -18,7 +18,7 @@ export function CategoriesScreen() {
   const fetchCategories = async () => {
     try {
       const data = await categoriesAPI.list();
-      if (data) setApiCategories(data);
+      if (Array.isArray(data)) setApiCategories(data);
     } catch (err) {
       console.error("Failed to load categories", err);
     } finally {
