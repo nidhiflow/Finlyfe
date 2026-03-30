@@ -1,197 +1,126 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { User, Moon, DollarSign, Calendar as CalendarIcon, Download, Shield, Cloud, Key, LogOut, Trash2, ChevronRight } from "lucide-react";
+import { User, Lock, LogOut, Trash2, Shield, Loader2 } from "lucide-react";
+import { authAPI } from "../services/api";
 
 export function SettingsScreen() {
   const navigate = useNavigate();
-  const [darkMode, setDarkMode] = useState(true);
-  const [currency, setCurrency] = useState("INR");
-  const [weekStart, setWeekStart] = useState("Sunday");
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const settingsSections = [
-    {
-      title: "Profile",
-      items: [
-        { icon: User, label: "Edit Profile", value: "PG", action: () => {} },
-      ],
-    },
-    {
-      title: "Preferences",
-      items: [
-        { icon: Moon, label: "Dark Mode", value: darkMode, isToggle: true, action: () => setDarkMode(!darkMode) },
-        { icon: DollarSign, label: "Currency", value: currency, action: () => {} },
-        { icon: CalendarIcon, label: "Week Starts On", value: weekStart, action: () => {} },
-      ],
-    },
-    {
-      title: "Data & Export",
-      items: [
-        { icon: Download, label: "Export CSV", value: null, action: () => {} },
-      ],
-    },
-    {
-      title: "Backup & Sync",
-      items: [
-        { icon: Cloud, label: "Google Drive Backup", value: "Not Connected", action: () => {} },
-        { icon: Download, label: "Local Backup", value: null, action: () => {} },
-        { icon: Download, label: "Restore from Backup", value: null, action: () => {} },
-      ],
-    },
-    {
-      title: "Security",
-      items: [
-        { icon: Key, label: "Change Password", value: null, action: () => {} },
-      ],
-    },
-  ];
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const profile = await authAPI.getProfile();
+        setUser(profile);
+      } catch {
+        setUser(authAPI.getCurrentUser());
+      } finally { setLoading(false); }
+    };
+    loadProfile();
+  }, []);
+
+  const handleLogout = () => {
+    authAPI.logout();
+    navigate("/login");
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword) { setError("Both fields required"); return; }
+    if (newPassword.length < 6) { setError("New password must be 6+ characters"); return; }
+    setSaving(true); setError(""); setMessage("");
+    try {
+      await authAPI.updatePassword({ currentPassword, newPassword });
+      setMessage("Password updated!");
+      setCurrentPassword(""); setNewPassword("");
+      setTimeout(() => setShowChangePassword(false), 1500);
+    } catch (err: any) {
+      setError(err.message || "Failed to update password");
+    } finally { setSaving(false); }
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmed = confirm("Are you sure you want to delete your account? This cannot be undone.");
+    if (!confirmed) return;
+    const doubleConfirm = confirm("All your data will be permanently deleted. Continue?");
+    if (!doubleConfirm) return;
+    try {
+      await authAPI.deleteAccount();
+      authAPI.logout();
+      navigate("/login");
+    } catch {}
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <Loader2 className="w-8 h-8 text-[#7C5CFF] animate-spin" />
+    </div>
+  );
 
   return (
     <div className="px-5 py-6 space-y-6">
-      {/* Profile Card */}
-      <div className="bg-gradient-to-br from-[#7C5CFF] to-[#4CC9F0] rounded-2xl p-6">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-            <User className="w-8 h-8 text-white" />
+      {/* Profile */}
+      <div className="bg-[#1B2130] rounded-2xl p-5 border border-white/5">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#7C5CFF] to-[#4CC9F0] flex items-center justify-center">
+            <span className="text-2xl font-bold text-white">{(user?.name || "U")[0].toUpperCase()}</span>
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white">PG</h2>
-            <p className="text-white/80 text-sm">pg@example.com</p>
+            <h2 className="text-lg font-semibold text-white">{user?.name || "User"}</h2>
+            <p className="text-sm text-white/50">{user?.email || ""}</p>
           </div>
         </div>
       </div>
 
-      {/* Settings Sections */}
-      {settingsSections.map((section) => (
-        <div key={section.title}>
-          <h3 className="text-sm font-semibold text-white/50 mb-3 uppercase tracking-wider px-1">
-            {section.title}
-          </h3>
-          <div className="bg-[#1B2130] rounded-2xl border border-white/5 overflow-hidden">
-            {section.items.map((item, index) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.label}
-                  onClick={item.action}
-                  className={`w-full flex items-center justify-between px-4 py-4 hover:bg-white/5 transition-colors ${
-                    index !== section.items.length - 1 ? "border-b border-white/5" : ""
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-5 h-5 text-white/70" />
-                    <span className="text-white font-medium">{item.label}</span>
-                  </div>
+      {/* Settings Items */}
+      <div className="space-y-2">
+        <button onClick={() => setShowChangePassword(!showChangePassword)}
+          className="w-full flex items-center gap-3 p-4 rounded-xl bg-[#1B2130] border border-white/5 text-left">
+          <Lock className="w-5 h-5 text-[#7C5CFF]" />
+          <span className="text-sm font-medium text-white flex-1">Change Password</span>
+        </button>
 
-                  {item.isToggle ? (
-                    <div
-                      className={`w-12 h-6 rounded-full p-1 transition-colors ${
-                        item.value ? "bg-[#7C5CFF]" : "bg-white/20"
-                      }`}
-                    >
-                      <div
-                        className={`w-4 h-4 bg-white rounded-full transition-transform ${
-                          item.value ? "translate-x-6" : ""
-                        }`}
-                      />
-                    </div>
-                  ) : item.value ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-white/50">{item.value}</span>
-                      <ChevronRight className="w-4 h-4 text-white/40" />
-                    </div>
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-white/40" />
-                  )}
-                </button>
-              );
-            })}
+        {showChangePassword && (
+          <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5 space-y-3">
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            {message && <p className="text-sm text-[#22C55E]">{message}</p>}
+            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Current password"
+              className="w-full px-4 py-3 bg-[#0D0F14] border border-white/10 rounded-xl text-white focus:border-[#7C5CFF] focus:outline-none" />
+            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="New password"
+              className="w-full px-4 py-3 bg-[#0D0F14] border border-white/10 rounded-xl text-white focus:border-[#7C5CFF] focus:outline-none" />
+            <button onClick={handleChangePassword} disabled={saving}
+              className="w-full py-3 bg-[#7C5CFF] rounded-xl text-white text-sm font-medium disabled:opacity-50">
+              {saving ? "Updating..." : "Update Password"}
+            </button>
           </div>
-        </div>
-      ))}
+        )}
 
-      {/* Privacy Notice */}
-      <div className="bg-[#1B2130] rounded-2xl p-5 border border-white/5">
-        <div className="flex items-start gap-3 mb-3">
-          <Shield className="w-5 h-5 text-[#7C5CFF] flex-shrink-0 mt-0.5" />
-          <div>
-            <h3 className="text-white font-semibold mb-2">Privacy & AI</h3>
-            <p className="text-sm text-white/60 leading-relaxed">
-              Your financial data is encrypted end-to-end and stored securely. AI features process data locally when possible. We never share your data with third parties.
-            </p>
-          </div>
-        </div>
-      </div>
+        <button onClick={handleLogout}
+          className="w-full flex items-center gap-3 p-4 rounded-xl bg-[#1B2130] border border-white/5 text-left">
+          <LogOut className="w-5 h-5 text-[#FFA500]" />
+          <span className="text-sm font-medium text-white flex-1">Logout</span>
+        </button>
 
-      {/* Export Options */}
-      <div className="bg-[#1B2130] rounded-2xl p-5 border border-white/5">
-        <h3 className="text-white font-semibold mb-3">Export Data</h3>
-        <div className="space-y-2">
-          <button className="w-full py-3 bg-[#0D0F14] border border-white/10 rounded-xl text-white text-sm font-medium hover:border-[#7C5CFF]/30">
-            Export All Data (CSV)
-          </button>
-          <button className="w-full py-3 bg-[#0D0F14] border border-white/10 rounded-xl text-white text-sm font-medium hover:border-[#7C5CFF]/30">
-            Export Last 30 Days
-          </button>
-          <button className="w-full py-3 bg-[#0D0F14] border border-white/10 rounded-xl text-white text-sm font-medium hover:border-[#7C5CFF]/30">
-            Export Custom Range
-          </button>
-        </div>
-      </div>
-
-      {/* Danger Zone */}
-      <div className="bg-[#1B2130] rounded-2xl p-5 border border-[#EF4444]/20">
-        <h3 className="text-[#EF4444] font-semibold mb-3">Danger Zone</h3>
-        <div className="space-y-2">
-          <button
-            onClick={() => navigate("/auth/login")}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-[#0D0F14] border border-white/10 rounded-xl text-white font-medium hover:border-[#EF4444]/30"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Logout</span>
-          </button>
-          <button
-            onClick={() => setShowDeleteModal(true)}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-xl text-[#EF4444] font-medium hover:bg-[#EF4444]/20"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Delete Account</span>
-          </button>
-        </div>
+        <button onClick={handleDeleteAccount}
+          className="w-full flex items-center gap-3 p-4 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 text-left">
+          <Trash2 className="w-5 h-5 text-[#EF4444]" />
+          <span className="text-sm font-medium text-[#EF4444] flex-1">Delete Account</span>
+        </button>
       </div>
 
       {/* App Info */}
-      <div className="text-center py-4">
-        <p className="text-sm text-white/50">Finly v1.0.0</p>
-        <p className="text-xs text-white/30 mt-1">Made with ❤️ for better finances</p>
+      <div className="text-center pt-8">
+        <p className="text-sm text-white/30">Finly v2.0</p>
+        <p className="text-xs text-white/20">Made with ❤️</p>
       </div>
-
-      {/* Delete Account Modal */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-5">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowDeleteModal(false)} />
-          <div className="relative max-w-sm w-full bg-[#1B2130] rounded-2xl p-6 border border-[#EF4444]/30">
-            <div className="w-12 h-12 rounded-full bg-[#EF4444]/20 flex items-center justify-center mx-auto mb-4">
-              <Trash2 className="w-6 h-6 text-[#EF4444]" />
-            </div>
-            <h2 className="text-xl font-bold text-white text-center mb-2">Delete Account?</h2>
-            <p className="text-sm text-white/60 text-center mb-6">
-              This will permanently delete all your data including transactions, budgets, and goals. This action cannot be undone.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="flex-1 py-3 bg-[#0D0F14] border border-white/10 rounded-xl text-white font-medium"
-              >
-                Cancel
-              </button>
-              <button className="flex-1 py-3 bg-[#EF4444] rounded-xl text-white font-semibold">
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,132 +1,149 @@
-import { useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { statsAPI } from "../services/api";
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
+}
+
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export function CalendarScreen() {
-  const [currentMonth, setCurrentMonth] = useState("March 2026");
-  const [selectedDate, setSelectedDate] = useState<number | null>(15);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [calendarData, setCalendarData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
-  const daysInMonth = 31;
-  const firstDayOfWeek = 6; // Saturday (0-6, where 0 is Sunday)
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const monthLabel = currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
-  const dayTransactions = {
-    15: [
-      { name: "Swiggy", amount: -450, type: "expense" },
-      { name: "Salary", amount: 50000, type: "income" },
-    ],
-    14: [
-      { name: "Uber", amount: -320, type: "expense" },
-    ],
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await statsAPI.calendar(year, month + 1);
+      setCalendarData(data);
+    } catch {} finally { setLoading(false); }
+  }, [year, month]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // Build calendar grid
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const dayEntries = calendarData?.days || {};
+
+  const getDayData = (day: number) => {
+    const key = String(day).padStart(2, "0");
+    return dayEntries[key] || dayEntries[day] || null;
   };
-
-  const dayStats = Array.from({ length: daysInMonth }, (_, i) => {
-    const day = i + 1;
-    const income = day === 1 ? 50000 : day % 7 === 0 ? 5000 : 0;
-    const expense = Math.floor(Math.random() * 2000) + 200;
-    return { day, income, expense };
-  });
 
   return (
     <div className="px-5 py-6 space-y-6">
-      {/* Month Selector */}
+      {/* Month Nav */}
       <div className="flex items-center justify-between">
-        <button className="w-10 h-10 rounded-xl bg-[#1B2130] flex items-center justify-center">
-          <ChevronLeft className="w-5 h-5 text-white" />
+        <button onClick={() => setCurrentDate(new Date(year, month - 1, 1))}
+          className="w-9 h-9 rounded-lg bg-[#1B2130] flex items-center justify-center">
+          <ChevronLeft className="w-4 h-4 text-white" />
         </button>
-        <h2 className="text-xl font-semibold text-white">{currentMonth}</h2>
-        <button className="w-10 h-10 rounded-xl bg-[#1B2130] flex items-center justify-center">
-          <ChevronRight className="w-5 h-5 text-white" />
+        <span className="text-sm text-white font-semibold">{monthLabel}</span>
+        <button onClick={() => setCurrentDate(new Date(year, month + 1, 1))}
+          className="w-9 h-9 rounded-lg bg-[#1B2130] flex items-center justify-center">
+          <ChevronRight className="w-4 h-4 text-white" />
         </button>
       </div>
 
-      {/* Calendar Grid */}
-      <div className="bg-[#1B2130] rounded-2xl p-4 border border-white/5">
-        {/* Weekday Headers */}
-        <div className="grid grid-cols-7 gap-2 mb-3">
-          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-            <div key={day} className="text-center text-xs text-white/50 font-medium">
-              {day}
-            </div>
-          ))}
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-8 h-8 text-[#7C5CFF] animate-spin" />
         </div>
-
-        {/* Calendar Days */}
-        <div className="grid grid-cols-7 gap-2">
-          {/* Empty cells before first day */}
-          {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-            <div key={`empty-${i}`} />
-          ))}
-
-          {/* Days */}
-          {dayStats.map((stat) => {
-            const hasIncome = stat.income > 0;
-            const hasExpense = stat.expense > 0;
-            const isSelected = selectedDate === stat.day;
-
-            return (
-              <button
-                key={stat.day}
-                onClick={() => setSelectedDate(stat.day)}
-                className={`relative aspect-square rounded-xl flex flex-col items-center justify-center transition-colors ${
-                  isSelected
-                    ? "bg-[#7C5CFF] text-white"
-                    : "bg-[#0D0F14] text-white/70 hover:bg-[#0D0F14]/70"
-                }`}
-              >
-                <span className="text-sm font-medium">{stat.day}</span>
-                <div className="flex gap-0.5 mt-1">
-                  {hasIncome && (
-                    <div className={`w-1 h-1 rounded-full ${isSelected ? "bg-white" : "bg-[#22C55E]"}`} />
-                  )}
-                  {hasExpense && (
-                    <div className={`w-1 h-1 rounded-full ${isSelected ? "bg-white" : "bg-[#EF4444]"}`} />
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Selected Day Details */}
-      {selectedDate && dayTransactions[selectedDate as keyof typeof dayTransactions] && (
-        <div>
-          <h3 className="text-lg font-semibold text-white mb-4">
-            March {selectedDate}, 2026
-          </h3>
-
-          <div className="space-y-3">
-            {dayTransactions[selectedDate as keyof typeof dayTransactions].map((tx, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between p-4 bg-[#1B2130] rounded-xl border border-white/5"
-              >
-                <div>
-                  <p className="text-sm font-medium text-white">{tx.name}</p>
-                  <p className="text-xs text-white/50 capitalize">{tx.type}</p>
-                </div>
-                <p
-                  className={`text-sm font-semibold ${
-                    tx.type === "income" ? "text-[#22C55E]" : "text-white"
-                  }`}
-                >
-                  {tx.type === "income" ? "+" : ""}₹{Math.abs(tx.amount).toLocaleString()}
-                </p>
+      ) : (
+        <>
+          {/* Summary */}
+          {calendarData && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-[#1B2130] rounded-xl p-3 border border-white/5 text-center">
+                <p className="text-xs text-white/50">Income</p>
+                <p className="text-lg font-bold text-[#22C55E]">{formatCurrency(calendarData.total_income || 0)}</p>
               </div>
-            ))}
+              <div className="bg-[#1B2130] rounded-xl p-3 border border-white/5 text-center">
+                <p className="text-xs text-white/50">Expense</p>
+                <p className="text-lg font-bold text-[#EF4444]">{formatCurrency(calendarData.total_expense || 0)}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Calendar Grid */}
+          <div className="bg-[#1B2130] rounded-2xl p-4 border border-white/5">
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {DAYS.map((d) => (
+                <div key={d} className="text-center text-xs text-white/40 font-medium py-1">{d}</div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: firstDay }).map((_, i) => (
+                <div key={`empty-${i}`} className="aspect-square" />
+              ))}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const data = getDayData(day);
+                const hasExpense = data?.expense > 0;
+                const hasIncome = data?.income > 0;
+                const isSelected = selectedDay === day;
+                const isToday = new Date().getDate() === day && new Date().getMonth() === month && new Date().getFullYear() === year;
+
+                return (
+                  <button
+                    key={day}
+                    onClick={() => setSelectedDay(isSelected ? null : day)}
+                    className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs transition-colors relative ${
+                      isSelected
+                        ? "bg-[#7C5CFF] text-white"
+                        : isToday
+                        ? "bg-[#7C5CFF]/20 text-white"
+                        : "text-white/70 hover:bg-white/5"
+                    }`}
+                  >
+                    <span className="font-medium">{day}</span>
+                    {(hasExpense || hasIncome) && (
+                      <div className="flex gap-0.5 mt-0.5">
+                        {hasIncome && <div className="w-1 h-1 rounded-full bg-[#22C55E]" />}
+                        {hasExpense && <div className="w-1 h-1 rounded-full bg-[#EF4444]" />}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Day Summary */}
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="bg-[#22C55E]/10 border border-[#22C55E]/30 rounded-xl p-4">
-              <p className="text-xs text-white/50 mb-1">Income</p>
-              <p className="text-xl font-bold text-[#22C55E]">₹50,000</p>
+          {/* Selected Day Details */}
+          {selectedDay && getDayData(selectedDay) && (
+            <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5 space-y-2">
+              <h3 className="text-sm font-semibold text-white">
+                {currentDate.toLocaleDateString("en-US", { month: "short" })} {selectedDay}
+              </h3>
+              {getDayData(selectedDay)?.income > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-sm text-white/50">Income</span>
+                  <span className="text-sm font-medium text-[#22C55E]">
+                    +{formatCurrency(getDayData(selectedDay).income)}
+                  </span>
+                </div>
+              )}
+              {getDayData(selectedDay)?.expense > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-sm text-white/50">Expense</span>
+                  <span className="text-sm font-medium text-[#EF4444]">
+                    -{formatCurrency(getDayData(selectedDay).expense)}
+                  </span>
+                </div>
+              )}
             </div>
-            <div className="bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-xl p-4">
-              <p className="text-xs text-white/50 mb-1">Expense</p>
-              <p className="text-xl font-bold text-[#EF4444]">₹450</p>
-            </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </div>
   );
