@@ -1191,22 +1191,24 @@ function AppBoot() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppProvider>
-          <AppBoot />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/*" element={
-              <ProtectedRoute>
-                <AppLayout />
-              </ProtectedRoute>
-            } />
-          </Routes>
-        </AppProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <div className="desktop-app">
+      <BrowserRouter>
+        <AuthProvider>
+          <AppProvider>
+            <AppBoot />
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/*" element={
+                <ProtectedRoute>
+                  <AppLayout />
+                </ProtectedRoute>
+              } />
+            </Routes>
+          </AppProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </div>
   );
 }

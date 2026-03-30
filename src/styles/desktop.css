@@ -416,20 +416,25 @@ body.theme-light {
   color: var(--text-secondary);
 }
 
-/* ===================== GLOBAL RESET ===================== */
-*,
-*::before,
-*::after {
+/* ===================== GLOBAL RESET — scoped to .desktop-app ===================== */
+.desktop-app *,
+.desktop-app *::before,
+.desktop-app *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-html {
+.desktop-app {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
 }
 
 html.mobile-nav-open,
@@ -438,70 +443,59 @@ html.mobile-nav-open body {
   touch-action: none;
 }
 
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  line-height: 1.6;
-  min-height: 100vh;
-  overflow-x: hidden;
-}
-
-html.theme-transitioning,
-html.theme-transitioning body,
-html.theme-transitioning .app-layout,
-html.theme-transitioning .main-content,
-html.theme-transitioning .page-header,
-html.theme-transitioning .sidebar,
-html.theme-transitioning .mobile-sidebar,
-html.theme-transitioning .card,
-html.theme-transitioning .btn,
-html.theme-transitioning .input,
-html.theme-transitioning .tx-item,
-html.theme-transitioning .bookmarks-panel,
-html.theme-transitioning .global-search-form,
-html.theme-transitioning .global-search-dropdown,
-html.theme-transitioning .modal,
-html.theme-transitioning .modal-overlay {
+html.theme-transitioning .desktop-app .app-layout,
+html.theme-transitioning .desktop-app .main-content,
+html.theme-transitioning .desktop-app .page-header,
+html.theme-transitioning .desktop-app .sidebar,
+html.theme-transitioning .desktop-app .mobile-sidebar,
+html.theme-transitioning .desktop-app .card,
+html.theme-transitioning .desktop-app .btn,
+html.theme-transitioning .desktop-app .input,
+html.theme-transitioning .desktop-app .tx-item,
+html.theme-transitioning .desktop-app .bookmarks-panel,
+html.theme-transitioning .desktop-app .global-search-form,
+html.theme-transitioning .desktop-app .global-search-dropdown,
+html.theme-transitioning .desktop-app .modal,
+html.theme-transitioning .desktop-app .modal-overlay {
   transition-property: background-color, color, border-color, box-shadow, fill, stroke;
   transition-duration: 0.22s;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-a {
+.desktop-app a {
   color: var(--accent-primary);
   text-decoration: none;
 }
 
-button {
+.desktop-app button {
   cursor: pointer;
   font-family: inherit;
   border: none;
   outline: none;
 }
 
-input,
-select,
-textarea {
+.desktop-app input,
+.desktop-app select,
+.desktop-app textarea {
   font-family: inherit;
   outline: none;
 }
 
 /* ===================== SCROLLBAR ===================== */
-::-webkit-scrollbar {
+.desktop-app ::-webkit-scrollbar {
   width: 6px;
 }
 
-::-webkit-scrollbar-track {
+.desktop-app ::-webkit-scrollbar-track {
   background: transparent;
 }
 
-::-webkit-scrollbar-thumb {
+.desktop-app ::-webkit-scrollbar-thumb {
   background: var(--text-muted);
   border-radius: 3px;
 }
 
-::-webkit-scrollbar-thumb:hover {
+.desktop-app ::-webkit-scrollbar-thumb:hover {
   background: var(--text-secondary);
 }
 
