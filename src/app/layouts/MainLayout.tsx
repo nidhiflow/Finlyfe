@@ -10,23 +10,23 @@ export function MainLayout() {
 
   const getPageTitle = () => {
     const path = location.pathname;
-    if (path === "/") return "Dashboard";
-    if (path === "/transactions") return "Transactions";
-    if (path === "/add-transaction") return "Add Transaction";
-    if (path.startsWith("/edit-transaction")) return "Edit Transaction";
-    if (path === "/reports") return "Reports";
-    if (path === "/categories") return "Categories";
-    if (path === "/accounts") return "Accounts";
-    if (path === "/calendar") return "Calendar";
-    if (path === "/budget") return "Budget";
-    if (path === "/goals") return "Goals";
-    if (path === "/ai-agent") return "AI Agent";
-    if (path === "/settings") return "Settings";
+    if (path === "/dashboard") return "Finly";
+    if (path === "/dashboard/transactions") return "Transactions";
+    if (path === "/dashboard/add-transaction") return "Add Transaction";
+    if (path.startsWith("/dashboard/edit-transaction")) return "Edit Transaction";
+    if (path === "/dashboard/reports") return "Reports";
+    if (path === "/dashboard/categories") return "Categories";
+    if (path === "/dashboard/accounts") return "Accounts";
+    if (path === "/dashboard/calendar") return "Calendar";
+    if (path === "/dashboard/budget") return "Budget";
+    if (path === "/dashboard/goals") return "Goals";
+    if (path === "/dashboard/ai-agent") return "AI Agent";
+    if (path === "/dashboard/settings") return "Settings";
     return "Finly";
   };
 
-  const showBackButton = location.pathname !== "/";
-  const showAddButton = ["/", "/transactions"].includes(location.pathname);
+  const showBackButton = location.pathname !== "/dashboard";
+  const showAddButton = ["/dashboard", "/dashboard/transactions"].includes(location.pathname);
 
   return (
     <div className="min-h-screen bg-[#0D0F14] pb-20">
@@ -48,7 +48,7 @@ export function MainLayout() {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => navigate("/transactions")}
+                onClick={() => navigate("/dashboard/transactions")}
                 className="w-9 h-9 rounded-xl bg-[#1B2130] flex items-center justify-center border border-white/5"
               >
                 <Search className="w-4 h-4 text-white/70" />
@@ -62,7 +62,7 @@ export function MainLayout() {
               </button>
               {showAddButton && (
                 <button
-                  onClick={() => navigate("/add-transaction")}
+                  onClick={() => navigate("/dashboard/add-transaction")}
                   className="w-9 h-9 rounded-xl bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] flex items-center justify-center shadow-lg shadow-[#7C5CFF]/25"
                 >
                   <Plus className="w-4 h-4 text-white" />
@@ -81,9 +81,9 @@ export function MainLayout() {
             <div className="flex items-center justify-around px-2 py-2 relative">
               {/* Home */}
               <button
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/dashboard")}
                 className={`flex flex-col items-center gap-1 py-2 px-4 rounded-xl transition-all ${
-                  location.pathname === "/" ? "text-[#7C5CFF]" : "text-white/40"
+                  location.pathname === "/dashboard" ? "text-[#7C5CFF]" : "text-white/40"
                 }`}
               >
                 <Home className="w-5 h-5" />
@@ -92,9 +92,9 @@ export function MainLayout() {
 
               {/* Ledger */}
               <button
-                onClick={() => navigate("/transactions")}
+                onClick={() => navigate("/dashboard/transactions")}
                 className={`flex flex-col items-center gap-1 py-2 px-4 rounded-xl transition-all ${
-                  location.pathname === "/transactions" ? "text-[#7C5CFF]" : "text-white/40"
+                  location.pathname === "/dashboard/transactions" ? "text-[#7C5CFF]" : "text-white/40"
                 }`}
               >
                 <FileText className="w-5 h-5" />
@@ -103,7 +103,7 @@ export function MainLayout() {
 
               {/* Center FAB */}
               <button
-                onClick={() => navigate("/add-transaction")}
+                onClick={() => navigate("/dashboard/add-transaction")}
                 className="w-14 h-14 -mt-6 rounded-2xl bg-gradient-to-br from-[#7C5CFF] to-[#4CC9F0] flex items-center justify-center shadow-lg shadow-[#7C5CFF]/50"
               >
                 <Plus className="w-6 h-6 text-white" />
@@ -111,9 +111,9 @@ export function MainLayout() {
 
               {/* Reports */}
               <button
-                onClick={() => navigate("/reports")}
+                onClick={() => navigate("/dashboard/reports")}
                 className={`flex flex-col items-center gap-1 py-2 px-4 rounded-xl transition-all ${
-                  location.pathname === "/reports" ? "text-[#7C5CFF]" : "text-white/40"
+                  location.pathname === "/dashboard/reports" ? "text-[#7C5CFF]" : "text-white/40"
                 }`}
               >
                 <BarChart3 className="w-5 h-5" />
