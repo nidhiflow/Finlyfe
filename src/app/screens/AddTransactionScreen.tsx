@@ -1,120 +1,33 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router";
-import { Calendar, Repeat, Loader2 } from "lucide-react";
-import { transactionsAPI, categoriesAPI, accountsAPI } from "../services/api";
+import { useState } from "react";
+import { useNavigate } from "react-router";
+import { Calculator, Calendar, Camera, Image, Repeat, ScanLine } from "lucide-react";
 
 export function AddTransactionScreen() {
   const navigate = useNavigate();
-  const { id: editId } = useParams();
   const [type, setType] = useState<"expense" | "income" | "transfer">("expense");
   const [amount, setAmount] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [accountId, setAccountId] = useState("");
-  const [toAccountId, setToAccountId] = useState("");
+  const [category, setCategory] = useState("");
+  const [account, setAccount] = useState("HDFC Bank");
+  const [toAccount, setToAccount] = useState("");
   const [note, setNote] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState("Today");
   const [recurring, setRecurring] = useState(false);
-  const [recurringInterval, setRecurringInterval] = useState("monthly");
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [categories, setCategories] = useState<any[]>([]);
-  const [accounts, setAccounts] = useState<any[]>([]);
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const [cats, accs] = await Promise.all([
-          categoriesAPI.list().catch(() => []),
-          accountsAPI.list().catch(() => []),
-        ]);
-        setCategories(Array.isArray(cats) ? cats : []);
-        setAccounts(Array.isArray(accs) ? accs : []);
-
-        // If editing, load the transaction
-        if (editId) {
-          const tx = await transactionsAPI.getById(editId);
-          if (tx) {
-            setType(tx.type || "expense");
-            setAmount(String(tx.amount || ""));
-            setCategoryId(String(tx.category_id || ""));
-            setAccountId(String(tx.account_id || ""));
-            setToAccountId(String(tx.to_account_id || ""));
-            setNote(tx.note || "");
-            setDate(tx.date ? tx.date.split("T")[0] : date);
-            setRecurring(!!tx.is_recurring);
-            setRecurringInterval(tx.recurring_interval || "monthly");
-          }
-        }
-      } catch (err) {
-        console.error("Load error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, [editId]);
-
-  const filteredCategories = categories.filter(
-    (c) => c.type === type || (type === "transfer" && c.type === "expense")
-  );
-
-  const handleSave = async () => {
-    if (!amount || parseFloat(amount) <= 0) {
-      setError("Please enter a valid amount");
-      return;
-    }
-    if (!categoryId && type !== "transfer") {
-      setError("Please select a category");
-      return;
-    }
-    if (!accountId) {
-      setError("Please select an account");
-      return;
-    }
-
-    setError("");
-    setSaving(true);
-    try {
-      const data: any = {
-        type,
-        amount: parseFloat(amount),
-        category_id: categoryId || null,
-        account_id: accountId,
-        note,
-        date,
-        is_recurring: recurring,
-        recurring_interval: recurring ? recurringInterval : null,
-      };
-      if (type === "transfer") {
-        data.to_account_id = toAccountId;
-      }
-
-      if (editId) {
-        await transactionsAPI.update(editId, data);
-      } else {
-        await transactionsAPI.create(data);
-      }
-      navigate("/dashboard/transactions");
-    } catch (err: any) {
-      setError(err.message || "Failed to save transaction");
-    } finally {
-      setSaving(false);
-    }
+  const categories = {
+    expense: ["Food & Dining", "Transport", "Bills", "Shopping", "Entertainment", "Healthcare", "Education", "Other"],
+    income: ["Salary", "Freelance", "Investment", "Gift", "Refund", "Other"],
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 text-[#7C5CFF] animate-spin" />
-      </div>
-    );
-  }
+  const accounts = ["HDFC Bank", "ICICI Savings", "Paytm Wallet", "Cash", "HDFC Credit Card"];
+
+  const handleSave = () => {
+    // Save transaction logic
+    navigate("/transactions");
+  };
 
   return (
     <div className="px-5 py-6 space-y-6">
-      {/* Type Tabs */}
+      {/* Tabs */}
       <div className="flex gap-2 p-1 bg-[#1B2130] rounded-xl">
         <button
           onClick={() => setType("income")}
@@ -142,51 +55,45 @@ export function AddTransactionScreen() {
         </button>
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
-          <p className="text-red-500 text-sm">{error}</p>
-        </div>
-      )}
-
-      {/* Amount */}
+      {/* Amount Input */}
       <div className="bg-[#1B2130] rounded-2xl p-6 border border-white/5">
         <label className="text-sm text-white/50 mb-3 block">Amount</label>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-4">
           <span className="text-3xl text-white/70">₹</span>
           <input
             type="text"
             inputMode="decimal"
             value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+            onChange={(e) => setAmount(e.target.value)}
             placeholder="0"
             className="flex-1 bg-transparent text-4xl font-bold text-white outline-none"
           />
         </div>
+        <button className="flex items-center gap-2 text-sm text-[#7C5CFF] hover:text-[#9D7EFF]">
+          <Calculator className="w-4 h-4" />
+          <span>Use Calculator</span>
+        </button>
       </div>
 
       {/* Category */}
-      {type !== "transfer" && (
-        <div>
-          <label className="text-sm text-white/70 mb-3 block">Category</label>
-          <div className="grid grid-cols-2 gap-2">
-            {filteredCategories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setCategoryId(String(cat.id))}
-                className={`py-3 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                  categoryId === String(cat.id)
-                    ? "bg-[#7C5CFF] text-white"
-                    : "bg-[#1B2130] text-white/70 border border-white/5 hover:border-[#7C5CFF]/30"
-                }`}
-              >
-                <span>{cat.icon || "📁"}</span>
-                <span className="truncate">{cat.name}</span>
-              </button>
-            ))}
-          </div>
+      <div>
+        <label className="text-sm text-white/70 mb-3 block">Category</label>
+        <div className="grid grid-cols-2 gap-2">
+          {categories[type === "transfer" ? "expense" : type].map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setCategory(cat)}
+              className={`py-3 rounded-xl text-sm font-medium transition-colors ${
+                category === cat
+                  ? "bg-[#7C5CFF] text-white"
+                  : "bg-[#1B2130] text-white/70 border border-white/5 hover:border-[#7C5CFF]/30"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* Account */}
       <div>
@@ -194,36 +101,29 @@ export function AddTransactionScreen() {
           {type === "transfer" ? "From Account" : "Account"}
         </label>
         <select
-          value={accountId}
-          onChange={(e) => setAccountId(e.target.value)}
+          value={account}
+          onChange={(e) => setAccount(e.target.value)}
           className="w-full px-4 py-3.5 bg-[#1B2130] border border-white/10 rounded-xl text-white focus:border-[#7C5CFF] focus:outline-none"
         >
-          <option value="">Select account</option>
           {accounts.map((acc) => (
-            <option key={acc.id} value={acc.id}>
-              {acc.parent_name ? `${acc.parent_name} / ${acc.name}` : acc.name}
-            </option>
+            <option key={acc} value={acc}>{acc}</option>
           ))}
         </select>
       </div>
 
-      {/* To Account (Transfer) */}
+      {/* To Account (Transfer only) */}
       {type === "transfer" && (
         <div>
           <label className="text-sm text-white/70 mb-3 block">To Account</label>
           <select
-            value={toAccountId}
-            onChange={(e) => setToAccountId(e.target.value)}
+            value={toAccount}
+            onChange={(e) => setToAccount(e.target.value)}
             className="w-full px-4 py-3.5 bg-[#1B2130] border border-white/10 rounded-xl text-white focus:border-[#7C5CFF] focus:outline-none"
           >
             <option value="">Select account</option>
-            {accounts
-              .filter((a) => String(a.id) !== accountId)
-              .map((acc) => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.parent_name ? `${acc.parent_name} / ${acc.name}` : acc.name}
-                </option>
-              ))}
+            {accounts.map((acc) => (
+              <option key={acc} value={acc}>{acc}</option>
+            ))}
           </select>
         </div>
       )}
@@ -231,15 +131,10 @@ export function AddTransactionScreen() {
       {/* Date */}
       <div>
         <label className="text-sm text-white/70 mb-3 block">Date</label>
-        <div className="relative">
-          <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full pl-12 pr-4 py-3.5 bg-[#1B2130] border border-white/10 rounded-xl text-white focus:border-[#7C5CFF] focus:outline-none"
-          />
-        </div>
+        <button className="w-full flex items-center gap-3 px-4 py-3.5 bg-[#1B2130] border border-white/10 rounded-xl text-white hover:border-[#7C5CFF]/30">
+          <Calendar className="w-5 h-5 text-white/70" />
+          <span>{date}</span>
+        </button>
       </div>
 
       {/* Note */}
@@ -254,15 +149,34 @@ export function AddTransactionScreen() {
         />
       </div>
 
+      {/* Attachments */}
+      <div>
+        <label className="text-sm text-white/70 mb-3 block">Attachments</label>
+        <div className="grid grid-cols-2 gap-3">
+          <button className="flex items-center justify-center gap-2 py-3 bg-[#1B2130] border border-white/10 rounded-xl text-white hover:border-[#7C5CFF]/30">
+            <Camera className="w-5 h-5" />
+            <span className="text-sm">Camera</span>
+          </button>
+          <button className="flex items-center justify-center gap-2 py-3 bg-[#1B2130] border border-white/10 rounded-xl text-white hover:border-[#7C5CFF]/30">
+            <Image className="w-5 h-5" />
+            <span className="text-sm">Gallery</span>
+          </button>
+        </div>
+      </div>
+
+      {/* AI Scan */}
+      <button className="w-full flex items-center justify-center gap-3 py-4 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold shadow-lg shadow-[#7C5CFF]/30">
+        <ScanLine className="w-5 h-5" />
+        <span>Scan Receipt with AI</span>
+      </button>
+
       {/* Recurring */}
       <div className="flex items-center justify-between px-4 py-3.5 bg-[#1B2130] border border-white/10 rounded-xl">
         <div className="flex items-center gap-3">
           <Repeat className="w-5 h-5 text-[#7C5CFF]" />
           <div>
-            <p className="text-sm font-medium text-white">Recurring</p>
-            <p className="text-xs text-white/50">
-              {recurring ? recurringInterval : "Off"}
-            </p>
+            <p className="text-sm font-medium text-white">Recurring Transaction</p>
+            <p className="text-xs text-white/50">Repeat monthly</p>
           </div>
         </div>
         <button
@@ -279,30 +193,12 @@ export function AddTransactionScreen() {
         </button>
       </div>
 
-      {recurring && (
-        <select
-          value={recurringInterval}
-          onChange={(e) => setRecurringInterval(e.target.value)}
-          className="w-full px-4 py-3.5 bg-[#1B2130] border border-white/10 rounded-xl text-white focus:border-[#7C5CFF] focus:outline-none"
-        >
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-          <option value="yearly">Yearly</option>
-        </select>
-      )}
-
-      {/* Save */}
+      {/* Save Button */}
       <button
         onClick={handleSave}
-        disabled={saving}
-        className="w-full py-4 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold shadow-lg shadow-[#7C5CFF]/30 disabled:opacity-50"
+        className="w-full py-4 bg-gradient-to-r from-[#7C5CFF] to-[#9D7EFF] rounded-xl text-white font-semibold shadow-lg shadow-[#7C5CFF]/30"
       >
-        {saving
-          ? "Saving..."
-          : editId
-          ? "Update Transaction"
-          : "Save Transaction"}
+        Save Transaction
       </button>
     </div>
   );

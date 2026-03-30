@@ -29,6 +29,14 @@ export const router = createBrowserRouter([
     Component: OnboardingScreen,
   },
   {
+    path: "/auth/login",
+    Component: AuthLayout,
+    children: [
+      { index: true, Component: LoginScreen },
+    ],
+  },
+  // Alias /login -> also works
+  {
     path: "/login",
     Component: AuthLayout,
     children: [
@@ -36,10 +44,24 @@ export const router = createBrowserRouter([
     ],
   },
   {
+    path: "/auth/signup",
+    Component: AuthLayout,
+    children: [
+      { index: true, Component: SignupScreen },
+    ],
+  },
+  {
     path: "/signup",
     Component: AuthLayout,
     children: [
       { index: true, Component: SignupScreen },
+    ],
+  },
+  {
+    path: "/auth/forgot-password",
+    Component: AuthLayout,
+    children: [
+      { index: true, Component: ForgotPasswordScreen },
     ],
   },
   {

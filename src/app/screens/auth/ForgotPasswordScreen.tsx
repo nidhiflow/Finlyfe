@@ -20,7 +20,7 @@ export function ForgotPasswordScreen() {
   };
 
   const handleResetPassword = () => {
-    navigate("/login");
+    navigate("/auth/login");
   };
 
   const handleOTPChange = (index: number, value: string) => {
@@ -167,7 +167,7 @@ export function ForgotPasswordScreen() {
         )}
 
         <button
-          onClick={() => navigate("/login")}
+          onClick={() => navigate("/auth/login")}
           className="w-full py-4 mt-4 bg-[#1B2130] border border-white/10 rounded-xl text-white font-semibold"
         >
           Back to Login
