@@ -2,6 +2,7 @@ import { Outlet, useLocation, useNavigate } from "react-router";
 import { ArrowLeft, Search, Bell, Bookmark, Plus, Home, FileText, BarChart3, Menu as MenuIcon } from "lucide-react";
 import { useState } from "react";
 import { MoreSheet } from "../components/MoreSheet";
+import { CategoryProvider } from "../context/CategoryContext";
 
 export function MainLayout() {
   const location = useLocation();
@@ -10,7 +11,7 @@ export function MainLayout() {
 
   const getPageTitle = () => {
     const path = location.pathname;
-    if (path === "/dashboard") return "Finly";
+    if (path === "/dashboard") return "Dashboard";
     if (path === "/dashboard/transactions") return "Transactions";
     if (path === "/dashboard/add-transaction") return "Add Transaction";
     if (path.startsWith("/dashboard/edit-transaction")) return "Edit Transaction";
@@ -30,6 +31,7 @@ export function MainLayout() {
 
   return (
     <div className="min-h-screen bg-[#0D0F14] pb-20">
+      <CategoryProvider>
       <div className="max-w-md mx-auto">
         {/* Top Bar */}
         <div className="sticky top-0 z-40 bg-[#0D0F14]/95 backdrop-blur-xl border-b border-white/5">
@@ -135,6 +137,7 @@ export function MainLayout() {
         {/* More Sheet */}
         <MoreSheet isOpen={showMore} onClose={() => setShowMore(false)} />
       </div>
+      </CategoryProvider>
     </div>
   );
 }

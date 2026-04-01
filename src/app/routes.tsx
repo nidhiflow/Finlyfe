@@ -2,6 +2,9 @@ import { createBrowserRouter } from "react-router";
 import { MainLayout } from "./layouts/MainLayout";
 import { AuthLayout } from "./layouts/AuthLayout";
 
+// Root redirect (smart entry point)
+import { RootRedirect } from "./screens/RootRedirect";
+
 // Onboarding
 import { OnboardingScreen } from "./screens/OnboardingScreen";
 
@@ -9,6 +12,8 @@ import { OnboardingScreen } from "./screens/OnboardingScreen";
 import { LoginScreen } from "./screens/auth/LoginScreen";
 import { SignupScreen } from "./screens/auth/SignupScreen";
 import { ForgotPasswordScreen } from "./screens/auth/ForgotPasswordScreen";
+import { QuickAuthSetupScreen } from "./screens/auth/QuickAuthSetupScreen";
+import { QuickLoginScreen } from "./screens/auth/QuickLoginScreen";
 
 // Main screens
 import { DashboardScreen } from "./screens/DashboardScreen";
@@ -24,53 +29,46 @@ import { AIAgentScreen } from "./screens/AIAgentScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 
 export const router = createBrowserRouter([
+  // ── Root: evaluates state and redirects to the right screen ──
   {
     path: "/",
+    Component: RootRedirect,
+  },
+
+  // ── Onboarding (4-slide intro for first-time users) ──
+  {
+    path: "/onboarding",
     Component: OnboardingScreen,
   },
-  {
-    path: "/auth/login",
-    Component: AuthLayout,
-    children: [
-      { index: true, Component: LoginScreen },
-    ],
-  },
-  // Alias /login -> also works
+
+  // ── Auth ──
   {
     path: "/login",
     Component: AuthLayout,
-    children: [
-      { index: true, Component: LoginScreen },
-    ],
-  },
-  {
-    path: "/auth/signup",
-    Component: AuthLayout,
-    children: [
-      { index: true, Component: SignupScreen },
-    ],
+    children: [{ index: true, Component: LoginScreen }],
   },
   {
     path: "/signup",
     Component: AuthLayout,
-    children: [
-      { index: true, Component: SignupScreen },
-    ],
-  },
-  {
-    path: "/auth/forgot-password",
-    Component: AuthLayout,
-    children: [
-      { index: true, Component: ForgotPasswordScreen },
-    ],
+    children: [{ index: true, Component: SignupScreen }],
   },
   {
     path: "/forgot-password",
     Component: AuthLayout,
-    children: [
-      { index: true, Component: ForgotPasswordScreen },
-    ],
+    children: [{ index: true, Component: ForgotPasswordScreen }],
   },
+  {
+    path: "/quick-auth-setup",
+    Component: AuthLayout,
+    children: [{ index: true, Component: QuickAuthSetupScreen }],
+  },
+  {
+    path: "/quick-login",
+    Component: AuthLayout,
+    children: [{ index: true, Component: QuickLoginScreen }],
+  },
+
+  // ── Main app ──
   {
     path: "/dashboard",
     Component: MainLayout,
@@ -88,5 +86,11 @@ export const router = createBrowserRouter([
       { path: "ai-agent", Component: AIAgentScreen },
       { path: "settings", Component: SettingsScreen },
     ],
+  },
+
+  // ── Fallback: any unknown URL → root redirect ──
+  {
+    path: "*",
+    Component: RootRedirect,
   },
 ]);
