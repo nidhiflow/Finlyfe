@@ -1,9 +1,39 @@
 // API Configuration — reads from env for production (static site), falls back to /api for local dev proxy
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
-// Token keys — must match desktop (finly_token, finly_user)
+// Token keys — check both old and new keys for backwards compatibility
 const AUTH_TOKEN_KEY = "finly_token";
 const AUTH_USER_KEY = "finly_user";
+// Legacy keys from an earlier deployed version
+const LEGACY_TOKEN_KEY = "authToken";
+const LEGACY_USER_KEY = "user";
+
+// Helper: get token from either key set
+function getToken(): string | null {
+  return localStorage.getItem(AUTH_TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY);
+}
+
+// Helper: get stored user from either key set
+function getStoredUser(): string | null {
+  return localStorage.getItem(AUTH_USER_KEY) || localStorage.getItem(LEGACY_USER_KEY);
+}
+
+// Helper: store auth data to both key sets
+function storeAuth(token: string, user: any) {
+  localStorage.setItem(AUTH_TOKEN_KEY, token);
+  localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+  // Also store to legacy keys for any cached legacy code
+  localStorage.setItem(LEGACY_TOKEN_KEY, token);
+  localStorage.setItem(LEGACY_USER_KEY, JSON.stringify(user));
+}
+
+// Helper: clear auth data from all key sets
+function clearAuth() {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_USER_KEY);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
+  localStorage.removeItem(LEGACY_USER_KEY);
+}
 
 // Types
 export interface User {
@@ -30,11 +60,11 @@ async function apiCall<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const token = getToken();
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...options.headers,
+    ...(options.headers as Record<string, string>),
   };
 
   if (
@@ -104,8 +134,7 @@ export const authAPI = {
     });
 
     if (response.token) {
-      localStorage.setItem(AUTH_TOKEN_KEY, response.token);
-      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(response.user));
+      storeAuth(response.token, response.user);
     }
 
     return response;
@@ -120,8 +149,7 @@ export const authAPI = {
 
     // If no OTP required, store token immediately
     if (response.token && response.user) {
-      localStorage.setItem(AUTH_TOKEN_KEY, response.token);
-      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(response.user));
+      storeAuth(response.token, response.user);
     }
 
     return response;
@@ -138,8 +166,7 @@ export const authAPI = {
     });
 
     if (response.token) {
-      localStorage.setItem(AUTH_TOKEN_KEY, response.token);
-      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(response.user));
+      storeAuth(response.token, response.user);
     }
 
     return response;
@@ -219,18 +246,17 @@ export const authAPI = {
 
   // Logout
   logout: () => {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-    localStorage.removeItem(AUTH_USER_KEY);
+    clearAuth();
   },
 
   // Check if user is authenticated
   isAuthenticated: () => {
-    return !!localStorage.getItem(AUTH_TOKEN_KEY);
+    return !!getToken();
   },
 
   // Get current user from localStorage
   getCurrentUser: (): User | null => {
-    const userStr = localStorage.getItem(AUTH_USER_KEY);
+    const userStr = getStoredUser();
     if (userStr) {
       try {
         return JSON.parse(userStr);

@@ -8,7 +8,10 @@ import { useNavigate } from "react-router";
 export function DashboardScreen() {
   const navigate = useNavigate();
   const [dateMode, setDateMode] = useState<"month" | "custom">("month");
-  const [currentMonth, setCurrentMonth] = useState("March 2026");
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const now = new Date();
+    return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  });
   
   // API State
   const [user, setUser] = useState<{name: string} | null>(null);
@@ -16,6 +19,8 @@ export function DashboardScreen() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [finlyScore, setFinlyScore] = useState<number>(0);
+  const [insights, setInsights] = useState<any>(null);
+  const [recurringTxs, setRecurringTxs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,17 +29,25 @@ export function DashboardScreen() {
         const currentUser = authAPI.getCurrentUser();
         if (currentUser) setUser(currentUser);
 
-        const [summaryData, scoreData, txData, accountsData] = await Promise.all([
+        const [summaryData, scoreData, txData, accountsData, insightsData] = await Promise.all([
           statsAPI.summary(),
           statsAPI.finlyScore(),
-          transactionsAPI.getAll({ limit: "3" }),
-          accountsAPI.list()
+          transactionsAPI.getAll({ limit: "5" }),
+          accountsAPI.list(),
+          statsAPI.insights().catch(() => null)
         ]);
 
         if (summaryData) setStats(summaryData);
-        if (scoreData?.score) setFinlyScore(scoreData.score);
-        if (txData) setTransactions(txData.slice(0, 3) || []);
-        if (accountsData) setAccounts(accountsData);
+        if (scoreData?.score != null) setFinlyScore(scoreData.score);
+        if (Array.isArray(txData)) setTransactions(txData.slice(0, 3));
+        if (Array.isArray(accountsData)) setAccounts(accountsData);
+        if (insightsData) setInsights(insightsData);
+
+        // Try to load recurring transactions
+        try {
+          const recurring = await transactionsAPI.getUpcomingRecurring();
+          if (Array.isArray(recurring)) setRecurringTxs(recurring);
+        } catch { /* recurring endpoint may not exist yet */ }
       } catch (error) {
         console.error("Dashboard fetch error:", error);
       } finally {
@@ -53,7 +66,17 @@ export function DashboardScreen() {
       {/* Greeting */}
       <div>
         <h1 className="text-2xl font-bold text-white mb-1">
-          {loading ? "Good Morning..." : `Good Morning, ${user?.name?.split(' ')[0] || 'User'}`}
+          {loading ? "Loading..." : (() => {
+            const hour = new Date().getHours();
+            const greet = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+            const name = user?.name;
+            if (name) {
+              const parts = name.trim().split(/\s+/);
+              const display = parts.length > 1 ? parts[0] : parts[0];
+              return `${greet}, ${display}`;
+            }
+            return `${greet}`;
+          })()}
         </h1>
         <p className="text-sm text-white/50">Here's your money overview</p>
       </div>
@@ -105,19 +128,23 @@ export function DashboardScreen() {
         <div className="bg-[#1B2130] rounded-2xl p-4 border border-white/5">
           <p className="text-xs text-white/50 mb-1">Income</p>
           <p className="text-2xl font-bold text-[#22C55E] mb-1">{formatCurrency(stats.income)}</p>
-          <div className="flex items-center gap-1 text-xs text-[#22C55E]">
-            <TrendingUp className="w-3 h-3" />
-            <span>+12.5%</span>
-          </div>
+          {insights?.expenseChange != null && (
+            <div className={`flex items-center gap-1 text-xs ${insights.expenseChange <= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
+              {insights.expenseChange <= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              <span>vs last month</span>
+            </div>
+          )}
         </div>
 
         <div className="bg-[#1B2130] rounded-2xl p-4 border border-white/5">
           <p className="text-xs text-white/50 mb-1">Expense</p>
           <p className="text-2xl font-bold text-[#EF4444] mb-1">{formatCurrency(stats.expenses)}</p>
-          <div className="flex items-center gap-1 text-xs text-[#EF4444]">
-            <TrendingDown className="w-3 h-3" />
-            <span>-5.2%</span>
-          </div>
+          {insights?.expenseChange != null && (
+            <div className={`flex items-center gap-1 text-xs ${insights.expenseChange >= 0 ? 'text-[#EF4444]' : 'text-[#22C55E]'}`}>
+              {insights.expenseChange >= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+              <span>{insights.expenseChange > 0 ? '+' : ''}{insights.expenseChange}%</span>
+            </div>
+          )}
         </div>
 
         <div className="bg-[#1B2130] rounded-2xl p-4 border border-white/5">
@@ -144,12 +171,12 @@ export function DashboardScreen() {
             <p className="text-sm text-white/60">Your financial health</p>
           </div>
           <div className="text-right">
-            <p className="text-4xl font-bold text-white">{finlyScore || 78}</p>
+            <p className="text-4xl font-bold text-white">{finlyScore}</p>
             <p className="text-sm text-white/60">/100</p>
           </div>
         </div>
         <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-[#7C5CFF] to-[#4CC9F0] rounded-full" style={{ width: `${finlyScore || 78}%` }}></div>
+          <div className="h-full bg-gradient-to-r from-[#7C5CFF] to-[#4CC9F0] rounded-full" style={{ width: `${finlyScore}%` }}></div>
         </div>
       </div>
 
@@ -157,47 +184,59 @@ export function DashboardScreen() {
       <div>
         <h3 className="text-lg font-semibold text-white mb-3">Insights</h3>
         <div className="space-y-3">
-          <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#22C55E]/20 flex items-center justify-center flex-shrink-0">
-                <TrendingUp className="w-5 h-5 text-[#22C55E]" />
-              </div>
-              <div className="flex-1">
-                <p className="text-white font-medium mb-1">Great progress!</p>
-                <p className="text-sm text-white/60">
-                  You spent ₹2,400 less this month compared to February
-                </p>
+          {insights?.expenseChange != null && (
+            <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
+              <div className="flex items-start gap-3">
+                <div className={`w-10 h-10 rounded-xl ${insights.expenseChange <= 0 ? 'bg-[#22C55E]/20' : 'bg-[#EF4444]/20'} flex items-center justify-center flex-shrink-0`}>
+                  {insights.expenseChange <= 0 ? <TrendingUp className="w-5 h-5 text-[#22C55E]" /> : <TrendingDown className="w-5 h-5 text-[#EF4444]" />}
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-medium mb-1">{insights.expenseChange <= 0 ? 'Great progress!' : 'Spending increased'}</p>
+                  <p className="text-sm text-white/60">
+                    {insights.expenseChange <= 0 ? `You spent ${Math.abs(insights.expenseChange)}% less this month` : `Spending is up ${insights.expenseChange}% compared to last month`}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#7C5CFF]/20 flex items-center justify-center flex-shrink-0">
-                <Utensils className="w-5 h-5 text-[#7C5CFF]" />
-              </div>
-              <div className="flex-1">
-                <p className="text-white font-medium mb-1">Top Category: Food</p>
-                <p className="text-sm text-white/60">
-                  ₹8,200 spent on dining (44% of total expenses)
-                </p>
+          {insights?.topCategory && (
+            <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#7C5CFF]/20 flex items-center justify-center flex-shrink-0">
+                  <span className="text-lg">{insights.topCategory.icon || '📦'}</span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-medium mb-1">Top Category: {insights.topCategory.name}</p>
+                  <p className="text-sm text-white/60">
+                    {insights.topCategory.pct}% of your total expenses
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#4CC9F0]/20 flex items-center justify-center flex-shrink-0">
-                <Calendar className="w-5 h-5 text-[#4CC9F0]" />
-              </div>
-              <div className="flex-1">
-                <p className="text-white font-medium mb-1">Highest Spend Day</p>
-                <p className="text-sm text-white/60">
-                  March 15 - ₹3,200 (Weekend shopping)
-                </p>
+          {insights?.highestSpendDay && (
+            <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#4CC9F0]/20 flex items-center justify-center flex-shrink-0">
+                  <Calendar className="w-5 h-5 text-[#4CC9F0]" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-medium mb-1">Highest Spend Day</p>
+                  <p className="text-sm text-white/60">
+                    {new Date(insights.highestSpendDay.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} — {formatCurrency(insights.highestSpendDay.amount)}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {!insights && (
+            <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
+              <p className="text-sm text-white/50 text-center">Add transactions to see insights</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -209,19 +248,7 @@ export function DashboardScreen() {
 
       <SpendingOverview />
 
-      {/* Budget Alerts */}
-      <div className="bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-2xl p-4">
-        <div className="flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-[#EF4444] flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-white font-medium mb-1">Budget Alert</p>
-            <p className="text-sm text-white/60">
-              You've used 82% of your Food budget (₹8,200 of ₹10,000)
-            </p>
-          </div>
-          <button className="text-xs text-white/50 hover:text-white/70">Dismiss</button>
-        </div>
-      </div>
+      {/* Budget Alerts — only show if insights have budget data */}
 
       {/* Recent Transactions */}
       <div>
@@ -266,19 +293,20 @@ export function DashboardScreen() {
       <div>
         <h3 className="text-lg font-semibold text-white mb-3">Upcoming Recurring</h3>
         <div className="space-y-2">
-          {[
-            { name: "Netflix", date: "Apr 1", amount: 199 },
-            { name: "Gym Membership", date: "Apr 5", amount: 2000 },
-          ].map((item, i) => (
-            <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-[#1B2130] border border-white/5">
+          {recurringTxs.length > 0 ? recurringTxs.map((item, i) => (
+            <div key={item.id || i} className="flex items-center gap-3 p-3 rounded-xl bg-[#1B2130] border border-white/5">
               <Repeat className="w-5 h-5 text-[#7C5CFF]" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-white">{item.name}</p>
-                <p className="text-xs text-white/50">{item.date}</p>
+                <p className="text-sm font-medium text-white">{item.title || item.name}</p>
+                <p className="text-xs text-white/50">{new Date(item.next_date || item.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</p>
               </div>
-              <p className="text-sm font-semibold text-white">₹{item.amount}</p>
+              <p className="text-sm font-semibold text-white">{formatCurrency(item.amount)}</p>
             </div>
-          ))}
+          )) : (
+            <div className="text-center py-4 bg-[#1B2130] rounded-xl border border-white/5">
+              <p className="text-sm text-white/50">No upcoming recurring transactions</p>
+            </div>
+          )}
         </div>
       </div>
 

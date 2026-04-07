@@ -7,6 +7,7 @@ export function TransactionsScreen() {
   const [showFilters, setShowFilters] = useState(false);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
+  const [recurringTxs, setRecurringTxs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -18,6 +19,11 @@ export function TransactionsScreen() {
         ]);
         if (txRes) setTransactions(txRes);
         if (bookmarksRes) setBookmarkedIds(new Set(bookmarksRes));
+        // Try to load recurring
+        try {
+          const rec = await transactionsAPI.getUpcomingRecurring();
+          if (Array.isArray(rec)) setRecurringTxs(rec);
+        } catch { /* endpoint may not exist */ }
       } catch (err) {
         console.error("Failed to fetch transactions:", err);
       } finally {
@@ -175,19 +181,20 @@ export function TransactionsScreen() {
             <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Upcoming Recurring</h3>
           </div>
           <div className="space-y-2">
-            {[
-              { name: "Netflix Subscription", date: "Apr 1", amount: 199 },
-              { name: "Gym Membership", date: "Apr 5", amount: 2000 },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-[#1B2130] border border-white/5">
+            {recurringTxs.length > 0 ? recurringTxs.map((item, i) => (
+              <div key={item.id || i} className="flex items-center gap-3 p-3 rounded-xl bg-[#1B2130] border border-white/5">
                 <Repeat className="w-5 h-5 text-[#7C5CFF]" />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-white">{item.name}</p>
-                  <p className="text-xs text-white/50">Due: {item.date}</p>
+                  <p className="text-sm font-medium text-white">{item.title || item.name}</p>
+                  <p className="text-xs text-white/50">Due: {new Date(item.next_date || item.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</p>
                 </div>
-                <p className="text-sm font-semibold text-white">₹{item.amount}</p>
+                <p className="text-sm font-semibold text-white">₹{Number(item.amount).toLocaleString('en-IN')}</p>
               </div>
-            ))}
+            )) : (
+              <div className="text-center py-4 bg-[#1B2130] rounded-xl border border-white/5">
+                <p className="text-sm text-white/50">No upcoming recurring transactions</p>
+              </div>
+            )}
           </div>
         </div>
 
