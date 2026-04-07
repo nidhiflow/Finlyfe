@@ -128,23 +128,19 @@ export function DashboardScreen() {
         <div className="bg-[#1B2130] rounded-2xl p-4 border border-white/5">
           <p className="text-xs text-white/50 mb-1">Income</p>
           <p className="text-2xl font-bold text-[#22C55E] mb-1">{formatCurrency(stats.income)}</p>
-          {insights?.expenseChange != null && (
-            <div className={`flex items-center gap-1 text-xs ${insights.expenseChange <= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
-              {insights.expenseChange <= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-              <span>vs last month</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1 text-xs text-[#22C55E]">
+            <TrendingUp className="w-3 h-3" />
+            <span>{insights?.expenseChange != null ? `${Math.abs(insights.expenseChange)}% vs last month` : '+0%'}</span>
+          </div>
         </div>
 
         <div className="bg-[#1B2130] rounded-2xl p-4 border border-white/5">
           <p className="text-xs text-white/50 mb-1">Expense</p>
           <p className="text-2xl font-bold text-[#EF4444] mb-1">{formatCurrency(stats.expenses)}</p>
-          {insights?.expenseChange != null && (
-            <div className={`flex items-center gap-1 text-xs ${insights.expenseChange >= 0 ? 'text-[#EF4444]' : 'text-[#22C55E]'}`}>
-              {insights.expenseChange >= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
-              <span>{insights.expenseChange > 0 ? '+' : ''}{insights.expenseChange}%</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1 text-xs text-[#EF4444]">
+            <TrendingDown className="w-3 h-3" />
+            <span>{insights?.expenseChange != null ? `${insights.expenseChange > 0 ? '+' : ''}${insights.expenseChange}%` : '-0%'}</span>
+          </div>
         </div>
 
         <div className="bg-[#1B2130] rounded-2xl p-4 border border-white/5">
@@ -184,59 +180,51 @@ export function DashboardScreen() {
       <div>
         <h3 className="text-lg font-semibold text-white mb-3">Insights</h3>
         <div className="space-y-3">
-          {insights?.expenseChange != null && (
-            <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
-              <div className="flex items-start gap-3">
-                <div className={`w-10 h-10 rounded-xl ${insights.expenseChange <= 0 ? 'bg-[#22C55E]/20' : 'bg-[#EF4444]/20'} flex items-center justify-center flex-shrink-0`}>
-                  {insights.expenseChange <= 0 ? <TrendingUp className="w-5 h-5 text-[#22C55E]" /> : <TrendingDown className="w-5 h-5 text-[#EF4444]" />}
-                </div>
-                <div className="flex-1">
-                  <p className="text-white font-medium mb-1">{insights.expenseChange <= 0 ? 'Great progress!' : 'Spending increased'}</p>
-                  <p className="text-sm text-white/60">
-                    {insights.expenseChange <= 0 ? `You spent ${Math.abs(insights.expenseChange)}% less this month` : `Spending is up ${insights.expenseChange}% compared to last month`}
-                  </p>
-                </div>
+          <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#22C55E]/20 flex items-center justify-center flex-shrink-0">
+                <TrendingUp className="w-5 h-5 text-[#22C55E]" />
+              </div>
+              <div className="flex-1">
+                <p className="text-white font-medium mb-1">{insights?.expenseChange != null && insights.expenseChange <= 0 ? 'Great progress!' : insights?.expenseChange != null ? 'Spending increased' : 'Track your spending'}</p>
+                <p className="text-sm text-white/60">
+                  {insights?.expenseChange != null
+                    ? (insights.expenseChange <= 0 ? `You spent ${Math.abs(insights.expenseChange)}% less this month` : `Spending is up ${insights.expenseChange}% compared to last month`)
+                    : 'Add transactions to see spending trends'}
+                </p>
               </div>
             </div>
-          )}
+          </div>
 
-          {insights?.topCategory && (
-            <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#7C5CFF]/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-lg">{insights.topCategory.icon || '📦'}</span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-white font-medium mb-1">Top Category: {insights.topCategory.name}</p>
-                  <p className="text-sm text-white/60">
-                    {insights.topCategory.pct}% of your total expenses
-                  </p>
-                </div>
+          <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#7C5CFF]/20 flex items-center justify-center flex-shrink-0">
+                <Utensils className="w-5 h-5 text-[#7C5CFF]" />
+              </div>
+              <div className="flex-1">
+                <p className="text-white font-medium mb-1">Top Category: {insights?.topCategory?.name || 'N/A'}</p>
+                <p className="text-sm text-white/60">
+                  {insights?.topCategory ? `${insights.topCategory.pct}% of your total expenses` : 'No expense data yet'}
+                </p>
               </div>
             </div>
-          )}
+          </div>
 
-          {insights?.highestSpendDay && (
-            <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#4CC9F0]/20 flex items-center justify-center flex-shrink-0">
-                  <Calendar className="w-5 h-5 text-[#4CC9F0]" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-white font-medium mb-1">Highest Spend Day</p>
-                  <p className="text-sm text-white/60">
-                    {new Date(insights.highestSpendDay.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} — {formatCurrency(insights.highestSpendDay.amount)}
-                  </p>
-                </div>
+          <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#4CC9F0]/20 flex items-center justify-center flex-shrink-0">
+                <Calendar className="w-5 h-5 text-[#4CC9F0]" />
+              </div>
+              <div className="flex-1">
+                <p className="text-white font-medium mb-1">Highest Spend Day</p>
+                <p className="text-sm text-white/60">
+                  {insights?.highestSpendDay
+                    ? `${new Date(insights.highestSpendDay.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} \u2014 ${formatCurrency(insights.highestSpendDay.amount)}`
+                    : 'No spending data yet'}
+                </p>
               </div>
             </div>
-          )}
-
-          {!insights && (
-            <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
-              <p className="text-sm text-white/50 text-center">Add transactions to see insights</p>
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -248,7 +236,19 @@ export function DashboardScreen() {
 
       <SpendingOverview />
 
-      {/* Budget Alerts — only show if insights have budget data */}
+      {/* Budget Alerts */}
+      <div className="bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-2xl p-4">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-[#EF4444] flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-white font-medium mb-1">Budget Alert</p>
+            <p className="text-sm text-white/60">
+              {insights?.budgetAlert || "You've used 82% of your Food budget (₹8,200 of ₹10,000)"}
+            </p>
+          </div>
+          <button className="text-xs text-white/50 hover:text-white/70">Dismiss</button>
+        </div>
+      </div>
 
       {/* Recent Transactions */}
       <div>
