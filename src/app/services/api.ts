@@ -1,5 +1,5 @@
-// API Configuration — uses /api proxy which Render rewrites to backend
-const API_BASE_URL = "/api";
+// API Configuration — reads from env for production (static site), falls back to /api for local dev proxy
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 // Token keys — must match desktop (finly_token, finly_user)
 const AUTH_TOKEN_KEY = "finly_token";
