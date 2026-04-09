@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router";
-import { X, Target, Calendar, Bot, PiggyBank, Wallet, Grid3x3, Settings, Moon, Sun, Search } from "lucide-react";
+import { X, Target, Calendar, Bot, PiggyBank, Wallet, Grid3x3, Settings, Moon, Sun, Search, Repeat } from "lucide-react";
 import { useState } from "react";
 
 interface MoreSheetProps {
@@ -12,6 +12,7 @@ export function MoreSheet({ isOpen, onClose }: MoreSheetProps) {
   const [darkMode, setDarkMode] = useState(true);
 
   const menuItems = [
+    { icon: Repeat, label: "Recurring", path: "/dashboard/recurring" },
     { icon: Target, label: "Budget", path: "/dashboard/budget" },
     { icon: Calendar, label: "Calendar", path: "/dashboard/calendar" },
     { icon: Bot, label: "AI Agent", path: "/dashboard/ai-agent" },

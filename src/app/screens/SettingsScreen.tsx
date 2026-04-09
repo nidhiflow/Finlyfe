@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { motion } from "motion/react";
 import { useNavigate } from "react-router";
-import { User as UserIcon, Moon, DollarSign, Calendar as CalendarIcon, Download, Shield, Cloud, Key, LogOut, Trash2, ChevronRight } from "lucide-react";
-import { authAPI } from "../services/api";
+import { User, Moon, Sun, DollarSign, Calendar as CalendarIcon, Download, Shield, Cloud, Key, LogOut, Trash2, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 
 export function SettingsScreen() {
   const navigate = useNavigate();
@@ -9,46 +10,23 @@ export function SettingsScreen() {
   const [currency, setCurrency] = useState("INR");
   const [weekStart, setWeekStart] = useState("Sunday");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
 
-  useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        const user = await authAPI.getProfile();
-        if (user) setProfile(user);
-      } catch (err) {
-        console.error("Failed to load profile", err);
-      }
-    };
-    loadProfile();
-  }, []);
-
-  const handleLogout = () => {
-    authAPI.logout();
-    navigate("/auth/login");
+  const handleThemeToggle = () => {
+    setDarkMode(!darkMode);
+    toast.success(darkMode ? "Light mode enabled" : "Dark mode enabled");
   };
 
-  const handleDeleteAccount = async () => {
-    try {
-      await authAPI.deleteAccount();
-      authAPI.logout();
-      navigate("/auth/login");
-    } catch (err) {
-      console.error("Failed to delete account", err);
-    }
-  };
-
-  const settingsSections: any[] = [
+  const settingsSections = [
     {
       title: "Profile",
       items: [
-        { icon: UserIcon, label: "Edit Profile", value: profile?.first_name || "PG", action: () => {} },
+        { icon: User, label: "Edit Profile", value: "PG", action: () => {} },
       ],
     },
     {
       title: "Preferences",
       items: [
-        { icon: Moon, label: "Dark Mode", value: darkMode, isToggle: true, action: () => setDarkMode(!darkMode) },
+        { icon: darkMode ? Moon : Sun, label: "Dark Mode", value: darkMode, isToggle: true, action: handleThemeToggle },
         { icon: DollarSign, label: "Currency", value: currency, action: () => {} },
         { icon: CalendarIcon, label: "Week Starts On", value: weekStart, action: () => {} },
       ],
@@ -81,11 +59,11 @@ export function SettingsScreen() {
       <div className="bg-gradient-to-br from-[#7C5CFF] to-[#4CC9F0] rounded-2xl p-6">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-            <UserIcon className="w-8 h-8 text-white" />
+            <User className="w-8 h-8 text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white">{profile?.first_name || "PG"} {profile?.last_name || ""}</h2>
-            <p className="text-white/80 text-sm">{profile?.email || "pg@example.com"}</p>
+            <h2 className="text-xl font-bold text-white">PG</h2>
+            <p className="text-white/80 text-sm">pg@example.com</p>
           </div>
         </div>
       </div>
@@ -97,7 +75,7 @@ export function SettingsScreen() {
             {section.title}
           </h3>
           <div className="bg-[#1B2130] rounded-2xl border border-white/5 overflow-hidden">
-            {section.items.map((item: any, index: number) => {
+            {section.items.map((item, index) => {
               const Icon = item.icon;
               return (
                 <button
@@ -113,17 +91,28 @@ export function SettingsScreen() {
                   </div>
 
                   {item.isToggle ? (
-                    <div
-                      className={`w-12 h-6 rounded-full p-1 transition-colors ${
-                        item.value ? "bg-[#7C5CFF]" : "bg-white/20"
-                      }`}
+                    <motion.div
+                      whileTap={{ scale: 0.9 }}
+                      className="w-12 h-7 rounded-full p-1 transition-all duration-300"
+                      style={{
+                        background: item.value
+                          ? "linear-gradient(135deg,#7C5CFF,#4CC9F0)"
+                          : "rgba(255,255,255,0.15)",
+                        boxShadow: item.value ? "0 2px 10px rgba(124,92,255,0.4)" : "none",
+                      }}
                     >
-                      <div
-                        className={`w-4 h-4 bg-white rounded-full transition-transform ${
-                          item.value ? "translate-x-6" : ""
-                        }`}
-                      />
-                    </div>
+                      <motion.div
+                        animate={{ x: item.value ? 20 : 0 }}
+                        transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                        className="w-5 h-5 rounded-full flex items-center justify-center"
+                        style={{ background: "white", boxShadow: "0 2px 4px rgba(0,0,0,0.2)" }}
+                      >
+                        {item.value
+                          ? <Moon className="w-3 h-3 text-[#7C5CFF]" />
+                          : <Sun className="w-3 h-3 text-gray-400" />
+                        }
+                      </motion.div>
+                    </motion.div>
                   ) : item.value ? (
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-white/50">{item.value}</span>
@@ -173,7 +162,7 @@ export function SettingsScreen() {
         <h3 className="text-[#EF4444] font-semibold mb-3">Danger Zone</h3>
         <div className="space-y-2">
           <button
-            onClick={handleLogout}
+            onClick={() => navigate("/auth/login")}
             className="w-full flex items-center justify-center gap-2 py-3 bg-[#0D0F14] border border-white/10 rounded-xl text-white font-medium hover:border-[#EF4444]/30"
           >
             <LogOut className="w-4 h-4" />
@@ -214,10 +203,7 @@ export function SettingsScreen() {
               >
                 Cancel
               </button>
-              <button 
-                onClick={handleDeleteAccount}
-                className="flex-1 py-3 bg-[#EF4444] rounded-xl text-white font-semibold hover:bg-[#EF4444]/80 transition-colors"
-                >
+              <button className="flex-1 py-3 bg-[#EF4444] rounded-xl text-white font-semibold">
                 Delete
               </button>
             </div>

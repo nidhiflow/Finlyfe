@@ -1,9 +1,0 @@
-node_modules/
-dist/
-build/
-.env
-.env.*
-*.log
-build_log.txt
-build_errors.txt
-.DS_Store

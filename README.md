@@ -1,7 +1,7 @@
 
-  # Design Finly Dashboard UI
+  # Finly
 
-  This is a code bundle for Design Finly Dashboard UI. The original project is available at https://www.figma.com/design/Q4hUypY2iFwtiUU0INdQ7P/Design-Finly-Dashboard-UI.
+  This is a code bundle for Finly. The original project is available at https://www.figma.com/design/Q4hUypY2iFwtiUU0INdQ7P/Finly.
 
   ## Running the code
 

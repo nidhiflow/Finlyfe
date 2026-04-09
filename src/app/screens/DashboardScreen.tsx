@@ -1,342 +1,552 @@
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Calendar, Award, Utensils, Car, Zap, ArrowUpDown, Repeat, AlertCircle } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { useNavigate } from "react-router";
+import {
+  ChevronLeft, ChevronRight, Calendar, Award,
+  ArrowUpDown, Repeat, Sparkles, Plus, TrendingUp,
+  Wallet, PieChart as PieIcon, Zap, BarChart2,
+} from "lucide-react";
 import { BalanceCard } from "../components/BalanceCard";
 import { SpendingOverview } from "../components/SpendingOverview";
-import { statsAPI, transactionsAPI, accountsAPI, authAPI, API_BASE_URL } from "../services/api";
-import { useNavigate } from "react-router";
+import { useCategoryContext } from "../context/CategoryContext";
 
+// ─── Zero State Data ────────────────────────────────────────────────────────────
+const ACCOUNTS_ZERO = [
+  { id:"a1", name:"HDFC Savings",      emoji:"🏦", color:"#4895EF", balance:0 },
+  { id:"a2", name:"SBI Salary A/C",   emoji:"💰", color:"#22C55E", balance:0 },
+  { id:"a3", name:"ICICI Credit Card",emoji:"💳", color:"#F72585", balance:0 },
+  { id:"a4", name:"Cash Wallet",      emoji:"💵", color:"#FFB703", balance:0 },
+];
+
+const MONTHS = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
+
+// ─── Empty State Reusable Component ────────────────────────────────────────────
+function EmptyState({
+  emoji, title, subtitle, ctaLabel, onCta, compact = false,
+}: {
+  emoji: string; title: string; subtitle?: string;
+  ctaLabel?: string; onCta?: () => void; compact?: boolean;
+}) {
+  return (
+    <div className={`flex flex-col items-center justify-center text-center ${compact ? "py-6 gap-2" : "py-10 gap-3"}`}>
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+        className={`${compact ? "w-12 h-12 text-2xl" : "w-16 h-16 text-3xl"} rounded-2xl flex items-center justify-center`}
+        style={{
+          background: "rgba(255,255,255,0.05)",
+          border: "1.5px dashed rgba(255,255,255,0.15)",
+        }}>
+        {emoji}
+      </motion.div>
+      <div>
+        <p className="text-white/55 font-semibold" style={{ fontSize: compact ? 13 : 14 }}>{title}</p>
+        {subtitle && (
+          <p className="text-white/30 mt-0.5" style={{ fontSize: 12 }}>{subtitle}</p>
+        )}
+      </div>
+      {ctaLabel && onCta && (
+        <motion.button
+          whileTap={{ scale: 0.96 }}
+          onClick={onCta}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-semibold"
+          style={{
+            background: "linear-gradient(135deg,#7C5CFF,#4CC9F0)",
+            boxShadow: "0 4px 16px rgba(124,92,255,0.38)",
+            fontSize: 12,
+            color: "white",
+          }}>
+          <Plus className="w-3.5 h-3.5" />
+          {ctaLabel}
+        </motion.button>
+      )}
+    </div>
+  );
+}
+
+// ─── Stat Card ─────────────────────────────────────────────────────────────────
+function StatCard({
+  label, value, accentColor, icon: Icon, isEmpty = true,
+}: {
+  label: string; value: string; accentColor: string;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  isEmpty?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl p-4 relative overflow-hidden"
+      style={{
+        background: "linear-gradient(135deg,rgba(255,255,255,0.055) 0%,rgba(255,255,255,0.02) 100%)",
+        border: "1px solid rgba(255,255,255,0.07)",
+      }}>
+      <div className="absolute top-2 right-2 w-8 h-8 rounded-xl flex items-center justify-center"
+        style={{ background: `${accentColor}18` }}>
+        <Icon className="w-4 h-4" style={{ color: accentColor }} />
+      </div>
+      <p className="text-white/40 mb-1.5" style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.4px" }}>
+        {label.toUpperCase()}
+      </p>
+      <p className="font-bold" style={{ fontSize: 24, color: isEmpty ? "rgba(255,255,255,0.22)" : accentColor }}>
+        {value}
+      </p>
+      {isEmpty && (
+        <p className="text-white/20 mt-1" style={{ fontSize: 10 }}>No data yet</p>
+      )}
+    </div>
+  );
+}
+
+// ─── Section Header ─────────────────────────────────────────────────────────────
+function SectionHeader({ title, actionLabel, onAction }: {
+  title: string; actionLabel?: string; onAction?: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <h3 className="text-white font-bold" style={{ fontSize: 16 }}>{title}</h3>
+      {actionLabel && (
+        <button onClick={onAction} style={{ fontSize: 13, fontWeight: 600, color: "#7C5CFF" }}>
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Dashboard ─────────────────────────────────────────────────────────────
 export function DashboardScreen() {
   const navigate = useNavigate();
-  const [dateMode, setDateMode] = useState<"month" | "custom">("month");
-  const [currentMonth, setCurrentMonth] = useState(() => {
-    const now = new Date();
-    return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  });
-  
-  // API State
-  const [user, setUser] = useState<{name: string} | null>(null);
-  const [stats, setStats] = useState<any>({ income: 0, expenses: 0, balance: 0, savings: 0 });
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [finlyScore, setFinlyScore] = useState<number>(0);
-  const [insights, setInsights] = useState<any>(null);
-  const [recurringTxs, setRecurringTxs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [dateMode, setDateMode]     = useState<"month" | "custom">("month");
+  const [monthIdx, setMonthIdx]     = useState(3); // April 2026 (index 3)
+  const [year, setYear]             = useState(2026);
+  const [dismissedAlert, setAlert]  = useState(false);
+  const [recurringList, setRecurringList] = useState<any[]>([]);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const currentUser = authAPI.getCurrentUser();
-        if (currentUser) setUser(currentUser);
+  const { getCatById } = useCategoryContext();
 
-        const [summaryData, scoreData, txData, accountsData, insightsData] = await Promise.all([
-          statsAPI.summary(),
-          statsAPI.finlyScore(),
-          transactionsAPI.getAll({ limit: "5" }),
-          accountsAPI.list(),
-          statsAPI.insights().catch(() => null)
-        ]);
-
-        if (summaryData) setStats(summaryData);
-        if (scoreData?.score != null) setFinlyScore(scoreData.score);
-        if (Array.isArray(txData)) setTransactions(txData.slice(0, 3));
-        if (Array.isArray(accountsData)) setAccounts(accountsData);
-        if (insightsData) setInsights(insightsData);
-
-        // Try to load recurring transactions
-        try {
-          const recurring = await transactionsAPI.getUpcomingRecurring();
-          if (Array.isArray(recurring)) setRecurringTxs(recurring);
-        } catch { /* recurring endpoint may not exist yet */ }
-      } catch (error) {
-        console.error("Dashboard fetch error:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, []);
-
-  const formatCurrency = (amt: number) => {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amt || 0);
+  // Dynamic greeting based on time
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return "Good Morning";
+    if (hour >= 12 && hour < 17) return "Good Afternoon";
+    if (hour >= 17 && hour < 21) return "Good Evening";
+    return "Good Night";
   };
 
+  useEffect(() => {
+    try {
+      const data = JSON.parse(localStorage.getItem("recurringTransactions") || "[]");
+      setRecurringList(data.filter((r: any) => r.status === "active").slice(0, 3));
+    } catch (error) {
+      console.error("Failed to load recurring transactions:", error);
+    }
+  }, []);
+
+  const prevMonth = () => {
+    if (monthIdx === 0) { setMonthIdx(11); setYear(y => y - 1); }
+    else setMonthIdx(i => i - 1);
+  };
+  const nextMonth = () => {
+    if (monthIdx === 11) { setMonthIdx(0); setYear(y => y + 1); }
+    else setMonthIdx(i => i + 1);
+  };
+  const jumpToday = () => { setMonthIdx(3); setYear(2026); };
+
+  const isCurrentMonth = monthIdx === 3 && year === 2026;
+
   return (
-    <div className="px-5 py-6 space-y-6">
-      {/* Greeting */}
-      <div>
-        <h1 className="text-2xl font-bold text-white mb-1">
-          {loading ? "Loading..." : (() => {
-            const hour = new Date().getHours();
-            const greet = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
-            const name = user?.name;
-            if (name) {
-              const parts = name.trim().split(/\s+/);
-              const display = parts.length > 1 ? parts[0] : parts[0];
-              return `${greet}, ${display}`;
-            }
-            return `${greet}`;
-          })()}
-        </h1>
-        <p className="text-sm text-white/50">Here's your money overview</p>
-      </div>
+    <div className="relative pb-36"
+      style={{ background: "linear-gradient(180deg,#0B0F1A 0%,#121826 100%)", minHeight: "100vh" }}>
 
-      {/* Date Selector */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setDateMode("month")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              dateMode === "month"
-                ? "bg-[#7C5CFF] text-white"
-                : "bg-[#1B2130] text-white/50"
-            }`}
-          >
-            Month
-          </button>
-          <button
-            onClick={() => setDateMode("custom")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              dateMode === "custom"
-                ? "bg-[#7C5CFF] text-white"
-                : "bg-[#1B2130] text-white/50"
-            }`}
-          >
-            Custom
-          </button>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <button className="w-8 h-8 rounded-lg bg-[#1B2130] flex items-center justify-center">
-            <ChevronLeft className="w-4 h-4 text-white" />
-          </button>
-          <span className="text-sm text-white font-medium min-w-24 text-center">{currentMonth}</span>
-          <button className="w-8 h-8 rounded-lg bg-[#1B2130] flex items-center justify-center">
-            <ChevronRight className="w-4 h-4 text-white" />
-          </button>
-        </div>
-      </div>
+      {/* Top ambient glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-80 h-32 pointer-events-none"
+        style={{ background: "radial-gradient(ellipse at 50% 0%,rgba(124,92,255,0.11) 0%,transparent 70%)" }} />
 
-      {/* Today Button */}
-      <button className="w-full py-2.5 bg-[#1B2130] border border-white/10 rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2">
-        <Calendar className="w-4 h-4" />
-        Jump to Today
-      </button>
+      <div className="relative z-10 px-4 pt-5 space-y-5">
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-[#1B2130] rounded-2xl p-4 border border-white/5">
-          <p className="text-xs text-white/50 mb-1">Income</p>
-          <p className="text-2xl font-bold text-[#22C55E] mb-1">{formatCurrency(stats.income)}</p>
-          <div className="flex items-center gap-1 text-xs text-[#22C55E]">
-            <TrendingUp className="w-3 h-3" />
-            <span>{insights?.expenseChange != null ? `${Math.abs(insights.expenseChange)}% vs last month` : '+0%'}</span>
-          </div>
-        </div>
-
-        <div className="bg-[#1B2130] rounded-2xl p-4 border border-white/5">
-          <p className="text-xs text-white/50 mb-1">Expense</p>
-          <p className="text-2xl font-bold text-[#EF4444] mb-1">{formatCurrency(stats.expenses)}</p>
-          <div className="flex items-center gap-1 text-xs text-[#EF4444]">
-            <TrendingDown className="w-3 h-3" />
-            <span>{insights?.expenseChange != null ? `${insights.expenseChange > 0 ? '+' : ''}${insights.expenseChange}%` : '-0%'}</span>
-          </div>
-        </div>
-
-        <div className="bg-[#1B2130] rounded-2xl p-4 border border-white/5">
-          <p className="text-xs text-white/50 mb-1">Net Balance</p>
-          <p className="text-2xl font-bold text-white mb-1">{formatCurrency(stats.balance)}</p>
-          <p className="text-xs text-white/50">This month</p>
-        </div>
-
-        <div className="bg-[#1B2130] rounded-2xl p-4 border border-white/5">
-          <p className="text-xs text-white/50 mb-1">Total Savings</p>
-          <p className="text-2xl font-bold text-white mb-1">{formatCurrency(stats.savings)}</p>
-          <p className="text-xs text-white/50">All accounts</p>
-        </div>
-      </div>
-
-      {/* Finly Score */}
-      <div className="bg-gradient-to-br from-[#7C5CFF]/20 to-[#4CC9F0]/20 border border-[#7C5CFF]/30 rounded-2xl p-5">
-        <div className="flex items-start justify-between mb-4">
+        {/* ── Greeting ── */}
+        <div className="flex items-start justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Award className="w-5 h-5 text-[#7C5CFF]" />
-              <h3 className="text-lg font-semibold text-white">Finly Score</h3>
-            </div>
-            <p className="text-sm text-white/60">Your financial health</p>
-          </div>
-          <div className="text-right">
-            <p className="text-4xl font-bold text-white">{finlyScore}</p>
-            <p className="text-sm text-white/60">/100</p>
-          </div>
-        </div>
-        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-[#7C5CFF] to-[#4CC9F0] rounded-full" style={{ width: `${finlyScore}%` }}></div>
-        </div>
-      </div>
-
-      {/* Insights */}
-      <div>
-        <h3 className="text-lg font-semibold text-white mb-3">Insights</h3>
-        <div className="space-y-3">
-          <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#22C55E]/20 flex items-center justify-center flex-shrink-0">
-                <TrendingUp className="w-5 h-5 text-[#22C55E]" />
-              </div>
-              <div className="flex-1">
-                <p className="text-white font-medium mb-1">{insights?.expenseChange != null && insights.expenseChange <= 0 ? 'Great progress!' : insights?.expenseChange != null ? 'Spending increased' : 'Track your spending'}</p>
-                <p className="text-sm text-white/60">
-                  {insights?.expenseChange != null
-                    ? (insights.expenseChange <= 0 ? `You spent ${Math.abs(insights.expenseChange)}% less this month` : `Spending is up ${insights.expenseChange}% compared to last month`)
-                    : 'Add transactions to see spending trends'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#7C5CFF]/20 flex items-center justify-center flex-shrink-0">
-                <Utensils className="w-5 h-5 text-[#7C5CFF]" />
-              </div>
-              <div className="flex-1">
-                <p className="text-white font-medium mb-1">Top Category: {insights?.topCategory?.name || 'N/A'}</p>
-                <p className="text-sm text-white/60">
-                  {insights?.topCategory ? `${insights.topCategory.pct}% of your total expenses` : 'No expense data yet'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-[#1B2130] rounded-xl p-4 border border-white/5">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#4CC9F0]/20 flex items-center justify-center flex-shrink-0">
-                <Calendar className="w-5 h-5 text-[#4CC9F0]" />
-              </div>
-              <div className="flex-1">
-                <p className="text-white font-medium mb-1">Highest Spend Day</p>
-                <p className="text-sm text-white/60">
-                  {insights?.highestSpendDay
-                    ? `${new Date(insights.highestSpendDay.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} \u2014 ${formatCurrency(insights.highestSpendDay.amount)}`
-                    : 'No spending data yet'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Cash Flow & Category */}
-      <div>
-        <h3 className="text-lg font-semibold text-white mb-3">Overview</h3>
-        <BalanceCard />
-      </div>
-
-      <SpendingOverview />
-
-      {/* Budget Alerts */}
-      <div className="bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-2xl p-4">
-        <div className="flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-[#EF4444] flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-white font-medium mb-1">Budget Alert</p>
-            <p className="text-sm text-white/60">
-              {insights?.budgetAlert || "You've used 82% of your Food budget (₹8,200 of ₹10,000)"}
+            <h1 className="text-white font-bold" style={{ fontSize: 24 }}>
+              {getGreeting()}
+            </h1>
+            <p className="text-white/38 mt-0.5" style={{ fontSize: 13 }}>
+              Welcome to Finly — let's get started
             </p>
           </div>
-          <button className="text-xs text-white/50 hover:text-white/70">Dismiss</button>
-        </div>
-      </div>
-
-      {/* Recent Transactions */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-white">Recent</h3>
-          <button onClick={() => navigate("/dashboard/transactions")} className="text-sm text-[#7C5CFF] font-medium">View All</button>
-        </div>
-
-        <div className="space-y-1">
-          {transactions.length > 0 ? transactions.map((tx, i) => {
-            const isExpense = tx.type === "expense";
-            const color = isExpense ? "#FF6B6B" : "#22C55E";
-            
-            // Get category icon placeholder if available
-            return (
-              <div key={tx.id || i} className="flex items-center gap-3 p-3 rounded-xl bg-[#1B2130] border border-white/5">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center p-2" style={{ backgroundColor: `${color}20` }}>
-                  {tx.category?.icon ? (
-                    <img src={tx.category.icon.startsWith('http') ? tx.category.icon : `${API_BASE_URL}${tx.category.icon}`} className="w-6 h-6 object-contain" alt="" />
-                  ) : (
-                    <ArrowUpDown className="w-5 h-5" style={{ color: color }} />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-white">{tx.title || "Transaction"}</p>
-                  <p className="text-xs text-white/50">{new Date(tx.date).toLocaleDateString()}</p>
-                </div>
-                <p className={`text-sm font-semibold ${isExpense ? 'text-white' : 'text-[#22C55E]'}`}>
-                  {isExpense ? "-" : "+"}{formatCurrency(tx.amount)}
-                </p>
-              </div>
-            );
-          }) : (
-            <div className="text-center py-6 bg-[#1B2130] rounded-xl border border-white/5">
-              <p className="text-sm text-white/50">No recent transactions</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Upcoming Recurring */}
-      <div>
-        <h3 className="text-lg font-semibold text-white mb-3">Upcoming Recurring</h3>
-        <div className="space-y-2">
-          {recurringTxs.length > 0 ? recurringTxs.map((item, i) => (
-            <div key={item.id || i} className="flex items-center gap-3 p-3 rounded-xl bg-[#1B2130] border border-white/5">
-              <Repeat className="w-5 h-5 text-[#7C5CFF]" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-white">{item.title || item.name}</p>
-                <p className="text-xs text-white/50">{new Date(item.next_date || item.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</p>
-              </div>
-              <p className="text-sm font-semibold text-white">{formatCurrency(item.amount)}</p>
-            </div>
-          )) : (
-            <div className="text-center py-4 bg-[#1B2130] rounded-xl border border-white/5">
-              <p className="text-sm text-white/50">No upcoming recurring transactions</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Accounts Preview */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-white">Accounts</h3>
-          <button onClick={() => navigate("/dashboard/accounts")} className="text-sm text-[#7C5CFF] font-medium">View All</button>
-        </div>
-        <div className="bg-[#1B2130] rounded-2xl p-5 border border-white/5">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-white/50">Total Balance</p>
-            <p className="text-2xl font-bold text-white">
-              {formatCurrency(accounts.reduce((sum, acc) => sum + Number(acc.balance || 0), 0))}
-            </p>
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
+            style={{ background: "linear-gradient(135deg,rgba(124,92,255,0.22),rgba(76,201,240,0.14))", border: "1px solid rgba(124,92,255,0.3)" }}>
+            <Sparkles className="w-5 h-5 text-[#7C5CFF]" />
           </div>
-          <div className="space-y-3">
-            {accounts.slice(0, 3).map((acc) => (
-              <div key={acc.id} className="flex items-center justify-between">
-                <span className="text-sm text-white/70">{acc.name}</span>
-                <span className={`text-sm font-medium ${Number(acc.balance) < 0 ? 'text-[#EF4444]' : 'text-white'}`}>
-                  {formatCurrency(acc.balance)}
-                </span>
-              </div>
+        </div>
+
+        {/* ── Start Here Hero Card ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="rounded-3xl p-5 relative overflow-hidden"
+          style={{
+            background: "linear-gradient(135deg,#7C5CFF 0%,#4CC9F0 100%)",
+            boxShadow: "0 12px 40px rgba(124,92,255,0.38)",
+          }}>
+          {/* Decorative blobs */}
+          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full"
+            style={{ background: "rgba(255,255,255,0.10)", filter: "blur(24px)" }} />
+          <div className="absolute -bottom-8 -left-8 w-28 h-28 rounded-full"
+            style={{ background: "rgba(76,201,240,0.20)", filter: "blur(24px)" }} />
+
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="w-4 h-4 text-white/80" />
+              <span className="text-white/80 font-semibold" style={{ fontSize: 11, letterSpacing: "0.5px" }}>
+                FRESH START
+              </span>
+            </div>
+            <p className="text-white font-bold mb-1" style={{ fontSize: 22, letterSpacing: "-0.3px" }}>
+              ₹ 0.00
+            </p>
+            <p className="text-white/70 mb-4" style={{ fontSize: 13 }}>
+              Total balance · Start adding transactions
+            </p>
+            <div className="flex gap-2">
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                onClick={() => navigate("/dashboard/add-transaction")}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold"
+                style={{ background: "rgba(255,255,255,0.22)", backdropFilter: "blur(8px)", fontSize: 13, color: "white" }}>
+                <Plus className="w-4 h-4" />
+                Add Transaction
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                onClick={() => navigate("/dashboard/accounts")}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold"
+                style={{ background: "rgba(255,255,255,0.12)", backdropFilter: "blur(8px)", fontSize: 13, color: "white/80" }}>
+                <Wallet className="w-4 h-4" />
+                Accounts
+              </motion.button>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ── Date Selector ── */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 p-1 rounded-xl"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            {(["month", "custom"] as const).map(mode => (
+              <button key={mode}
+                onClick={() => setDateMode(mode)}
+                className="px-4 py-1.5 rounded-lg capitalize font-semibold transition-colors"
+                style={{
+                  fontSize: 12,
+                  background: dateMode === mode ? "linear-gradient(135deg,#7C5CFF,#4CC9F0)" : "transparent",
+                  color: dateMode === mode ? "white" : "rgba(255,255,255,0.35)",
+                  boxShadow: dateMode === mode ? "0 2px 8px rgba(124,92,255,0.35)" : "none",
+                }}>
+                {mode}
+              </button>
             ))}
-            {accounts.length === 0 && (
-              <p className="text-sm text-white/50 text-center py-2">No accounts added</p>
-            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button onClick={prevMonth}
+              className="w-8 h-8 rounded-xl flex items-center justify-center"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}>
+              <ChevronLeft className="w-4 h-4 text-white/50" />
+            </button>
+            <span className="font-semibold min-w-28 text-center" style={{ fontSize: 13, color: "rgba(255,255,255,0.75)" }}>
+              {MONTHS[monthIdx]} {year}
+            </span>
+            <button onClick={nextMonth}
+              className="w-8 h-8 rounded-xl flex items-center justify-center"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)" }}>
+              <ChevronRight className="w-4 h-4 text-white/50" />
+            </button>
           </div>
         </div>
+
+        {/* Jump to Today */}
+        {!isCurrentMonth && (
+          <motion.button
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            onClick={jumpToday}
+            className="w-full py-2.5 rounded-xl flex items-center justify-center gap-2 font-semibold"
+            style={{
+              background: "rgba(124,92,255,0.12)",
+              border: "1px solid rgba(124,92,255,0.28)",
+              fontSize: 13, color: "#9D7EFF",
+            }}>
+            <Calendar className="w-4 h-4" />
+            Jump to Today (April 2026)
+          </motion.button>
+        )}
+
+        {/* ── Summary Cards 2×2 ── */}
+        <div className="grid grid-cols-2 gap-3">
+          <StatCard label="Income"      value="₹0" accentColor="#22C55E" icon={TrendingUp} />
+          <StatCard label="Expense"     value="₹0" accentColor="#EF4444" icon={ArrowUpDown} />
+          <StatCard label="Net Balance" value="₹0" accentColor="#7C5CFF" icon={Wallet} />
+          <StatCard label="Savings"     value="₹0" accentColor="#F72585" icon={BarChart2} />
+        </div>
+
+        {/* ── Finly Score ── */}
+        <div className="rounded-2xl p-5 relative overflow-hidden"
+          style={{
+            background: "linear-gradient(135deg,rgba(124,92,255,0.10) 0%,rgba(76,201,240,0.06) 100%)",
+            border: "1px solid rgba(124,92,255,0.22)",
+          }}>
+          <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full pointer-events-none"
+            style={{ background: "radial-gradient(circle,rgba(124,92,255,0.18) 0%,transparent 70%)" }} />
+
+          <div className="flex items-start justify-between mb-4 relative z-10">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Award className="w-5 h-5 text-[#7C5CFF]" />
+                <h3 className="text-white font-bold" style={{ fontSize: 16 }}>Finly Score</h3>
+              </div>
+              <p className="text-white/38" style={{ fontSize: 12 }}>
+                Start tracking to see your financial health
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="font-bold" style={{ fontSize: 38, color: "rgba(255,255,255,0.22)", letterSpacing: "-1px" }}>0</p>
+              <p className="text-white/28" style={{ fontSize: 12 }}>/100</p>
+            </div>
+          </div>
+
+          {/* Progress bar — empty */}
+          <div className="h-2 rounded-full overflow-hidden relative z-10"
+            style={{ background: "rgba(255,255,255,0.08)" }}>
+            <motion.div
+              className="h-full rounded-full"
+              style={{ background: "linear-gradient(90deg,#7C5CFF,#4CC9F0)" }}
+              initial={{ width: "0%" }}
+              animate={{ width: "0%" }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between mt-3 relative z-10">
+            <p className="text-white/25" style={{ fontSize: 10 }}>
+              Add income &amp; expenses to compute score
+            </p>
+            <span className="px-2 py-0.5 rounded-full" style={{ fontSize: 10, fontWeight: 700, background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.28)" }}>
+              0%
+            </span>
+          </div>
+        </div>
+
+        {/* ── Overview Card (BalanceCard) ── */}
+        <div>
+          <SectionHeader title="Overview" />
+          <BalanceCard />
+        </div>
+
+        {/* ── Spending Overview (pie chart) ── */}
+        <SpendingOverview />
+
+        {/* ── Insights ── */}
+        <div>
+          <SectionHeader title="Insights" />
+          <div className="rounded-2xl overflow-hidden"
+            style={{
+              background: "linear-gradient(135deg,rgba(255,255,255,0.045) 0%,rgba(255,255,255,0.018) 100%)",
+              border: "1px solid rgba(255,255,255,0.07)",
+            }}>
+            <EmptyState
+              emoji="🧠"
+              title="No insights yet"
+              subtitle="Start adding transactions to unlock AI-powered insights"
+              ctaLabel="Add Transaction"
+              onCta={() => navigate("/dashboard/add-transaction")}
+            />
+          </div>
+        </div>
+
+        {/* ── Recent Transactions ── */}
+        <div>
+          <SectionHeader
+            title="Recent Transactions"
+            actionLabel="View All"
+            onAction={() => navigate("/dashboard/transactions")}
+          />
+          <div className="rounded-2xl overflow-hidden"
+            style={{
+              background: "linear-gradient(135deg,rgba(255,255,255,0.045) 0%,rgba(255,255,255,0.018) 100%)",
+              border: "1px solid rgba(255,255,255,0.07)",
+            }}>
+            <EmptyState
+              emoji="🧾"
+              title="No transactions yet"
+              subtitle="Your recent income & expenses will appear here"
+              ctaLabel="Add your first transaction"
+              onCta={() => navigate("/dashboard/add-transaction")}
+            />
+          </div>
+        </div>
+
+        {/* ── Upcoming Recurring ── */}
+        <div>
+          <SectionHeader
+            title="Upcoming Recurring"
+            actionLabel={recurringList.length > 0 ? "View All" : undefined}
+            onAction={recurringList.length > 0 ? () => navigate("/dashboard/recurring") : undefined}
+          />
+          {recurringList.length === 0 ? (
+            <div className="rounded-2xl overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg,rgba(255,255,255,0.045) 0%,rgba(255,255,255,0.018) 100%)",
+                border: "1px solid rgba(255,255,255,0.07)",
+              }}>
+              <EmptyState
+                emoji="🔁"
+                title="No recurring transactions set"
+                subtitle="Set up recurring entries when adding a transaction"
+                compact
+              />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {recurringList.map((rec: any) => {
+                const cat = rec.categoryId ? getCatById(rec.categoryId) : null;
+                const typeColor = rec.type === "income" ? "#22C55E" : rec.type === "transfer" ? "#4CC9F0" : "#EF4444";
+                const start = new Date(rec.startDate);
+                const day = start.getDate();
+                const freq = rec.frequency === "monthly" ? `${day}${day === 1 ? "st" : day === 2 ? "nd" : day === 3 ? "rd" : "th"}` :
+                             rec.frequency === "weekly" ? ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][start.getDay()] :
+                             rec.frequency;
+
+                return (
+                  <motion.div key={rec.id}
+                    whileTap={{scale:0.98}}
+                    onClick={() => navigate("/dashboard/recurring")}
+                    className="flex items-center gap-3 p-3 rounded-2xl cursor-pointer"
+                    style={{
+                      background: `linear-gradient(135deg,${typeColor}08 0%,rgba(255,255,255,0.02) 100%)`,
+                      border: `1px solid ${typeColor}20`,
+                    }}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+                      style={{background:`${cat?.color || typeColor}18`, border:`1px solid ${cat?.color || typeColor}30`}}>
+                      {cat?.emoji || (rec.type === "income" ? "💰" : rec.type === "transfer" ? "🔄" : "💸")}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-semibold truncate" style={{fontSize:13}}>
+                        {cat?.name || rec.note || "Transaction"}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <Repeat className="w-3 h-3" style={{color:typeColor}} />
+                        <span style={{fontSize:11, color:"rgba(255,255,255,0.55)"}}>
+                          {freq} • {rec.frequency}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="font-bold flex-shrink-0" style={{fontSize:14, color:typeColor}}>
+                      ₹{rec.amount.toLocaleString("en-IN")}
+                    </p>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ── Accounts Summary ── */}
+        <div>
+          <SectionHeader
+            title="Accounts"
+            actionLabel="View All"
+            onAction={() => navigate("/dashboard/accounts")}
+          />
+          <div className="rounded-2xl p-5"
+            style={{
+              background: "linear-gradient(135deg,rgba(255,255,255,0.055) 0%,rgba(255,255,255,0.02) 100%)",
+              border: "1px solid rgba(255,255,255,0.07)",
+            }}>
+            {/* Net worth row */}
+            <div className="flex items-center justify-between mb-4 pb-4"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+              <div>
+                <p className="text-white/40" style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.4px" }}>NET WORTH</p>
+                <p className="font-bold mt-0.5" style={{ fontSize: 26, color: "rgba(255,255,255,0.22)" }}>₹0</p>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <Wallet className="w-3.5 h-3.5 text-white/30" />
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.30)", fontWeight: 600 }}>No balance</span>
+              </div>
+            </div>
+
+            {/* Individual accounts */}
+            <div className="space-y-3">
+              {ACCOUNTS_ZERO.map(acc => (
+                <div key={acc.id} className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0"
+                    style={{ background: `${acc.color}18`, border: `1px solid ${acc.color}28` }}>
+                    {acc.emoji}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white/60 font-semibold truncate" style={{ fontSize: 13 }}>{acc.name}</p>
+                  </div>
+                  <p className="font-bold" style={{ fontSize: 13, color: "rgba(255,255,255,0.25)" }}>₹0</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Add account CTA */}
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate("/dashboard/accounts")}
+              className="w-full mt-4 py-3 rounded-2xl flex items-center justify-center gap-2 font-semibold"
+              style={{
+                background: "rgba(124,92,255,0.10)",
+                border: "1px dashed rgba(124,92,255,0.30)",
+                fontSize: 13, color: "#9D7EFF",
+              }}>
+              <Zap className="w-4 h-4" />
+              Connect your accounts
+            </motion.button>
+          </div>
+        </div>
+
+        {/* ── Motivational Footer CTA ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="rounded-3xl p-5 text-center relative overflow-hidden"
+          style={{
+            background: "linear-gradient(135deg,rgba(124,92,255,0.12) 0%,rgba(76,201,240,0.08) 100%)",
+            border: "1px solid rgba(124,92,255,0.22)",
+          }}>
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: "radial-gradient(circle at 50% 0%,rgba(124,92,255,0.10) 0%,transparent 60%)" }} />
+          <div className="relative z-10">
+            <p className="text-3xl mb-2">🚀</p>
+            <p className="text-white font-bold mb-1" style={{ fontSize: 16 }}>
+              Your financial journey starts here
+            </p>
+            <p className="text-white/40 mb-4" style={{ fontSize: 13 }}>
+              Add your first income or expense to see<br />your personalized financial overview
+            </p>
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate("/dashboard/add-transaction")}
+              className="flex items-center gap-2 px-6 py-3 rounded-2xl font-bold mx-auto"
+              style={{
+                background: "linear-gradient(135deg,#7C5CFF,#4CC9F0)",
+                boxShadow: "0 6px 20px rgba(124,92,255,0.42)",
+                fontSize: 14, color: "white",
+              }}>
+              <Plus className="w-4 h-4" />
+              Start Adding Transactions
+            </motion.button>
+          </div>
+        </motion.div>
+
       </div>
     </div>
   );

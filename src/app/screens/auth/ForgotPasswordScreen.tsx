@@ -20,7 +20,7 @@ export function ForgotPasswordScreen() {
   };
 
   const handleResetPassword = () => {
-    navigate("/auth/login");
+    navigate("/login");
   };
 
   const handleOTPChange = (index: number, value: string) => {
@@ -81,8 +81,11 @@ export function ForgotPasswordScreen() {
         {step === "otp" && (
           <>
             <div className="bg-[#1B2130] border border-white/10 rounded-2xl p-6 mb-6">
-              <p className="text-sm text-white/50 mb-6">
+              <p className="text-sm text-white/50 mb-2">
                 Enter the 6-digit code sent to {email}
+              </p>
+              <p className="text-xs text-blue-400/70 mb-6">
+                Demo: Use any 6-digit code (e.g., 123456)
               </p>
 
               <div className="flex gap-2 justify-center mb-6">
@@ -167,7 +170,7 @@ export function ForgotPasswordScreen() {
         )}
 
         <button
-          onClick={() => navigate("/auth/login")}
+          onClick={() => navigate("/login")}
           className="w-full py-4 mt-4 bg-[#1B2130] border border-white/10 rounded-xl text-white font-semibold"
         >
           Back to Login
